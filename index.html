@@ -4,18 +4,29 @@
     <meta charset="UTF-8">
     <title>コマ撮りメーカー（学校用）</title>
     <style>
-        /* ロック画面のスタイル */
+        body { font-family: sans-serif; text-align: center; background: #fafafa; margin: 0; }
         #lock-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #f0f0f0; display: flex; flex-direction: column;
             align-items: center; justify-content: center; z-index: 1000;
         }
-        /* メインコンテンツ（最初は隠しておく） */
         #main-content { display: none; padding: 20px; }
         
-        video, canvas { width: 320px; border: 2px solid #333; }
-        .frames { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
-        .frames img { width: 80px; border: 1px solid #ccc; }
+        .viewer-container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+        video, canvas { width: 400px; background: #000; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        
+        .controls { margin: 20px 0; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; border-radius: 5px; border: none; transition: 0.2s; }
+        
+        #shutter { background: #ff4757; color: white; font-weight: bold; }
+        #shutter:hover { background: #ff6b81; }
+        #play-btn { background: #2ed573; color: white; }
+        #download-btn { background: #1e90ff; color: white; }
+        #delete-btn { background: #ffa502; color: white; }
+
+        .frames { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 20px; border-top: 1px solid #ddd; padding-top: 10px; overflow-y: auto; max-height: 200px; }
+        .frames img { width: 100px; border: 2px solid transparent; }
+        .current-frame { border: 2px solid #ff4757 !important; }
     </style>
 </head>
 <body>
@@ -28,52 +39,135 @@
     </div>
 
     <div id="main-content">
-        <h1>コマ撮りメーカー</h1>
-        <video id="video" autoplay playsinline></video>
-        <button id="shutter">写真を撮る</button>
-        <h3>撮影済みコマ</h3>
+        <h1>🎬 コマ撮りメーカー</h1>
+        
+        <div class="viewer-container">
+            <div>
+                <p>カメラ（撮影）</p>
+                <video id="video" autoplay playsinline></video>
+            </div>
+            <div>
+                <p>プレビュー（再生）</p>
+                <canvas id="canvas-preview"></canvas>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="shutter">📸 写真を撮る</button>
+            <button id="delete-btn">↩️ 1つ消す</button>
+            <button id="play-btn">▶️ 再生する</button>
+            <button id="download-btn">💾 動画を保存</button>
+            <span>速度: <input type="number" id="fps" value="10" min="1" max="30" style="width:40px"> fps</span>
+        </div>
+
+        <h3>撮影したコマ（合計: <span id="count">0</span>枚）</h3>
         <div id="frames" class="frames"></div>
     </div>
 
     <script>
-        // ★ここでパスコードを決めてください
         const SECRET_PASSWORD = "QXJ0U3Rvc"; 
+        const video = document.getElementById('video');
+        const shutter = document.getElementById('shutter');
+        const playBtn = document.getElementById('play-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const deleteBtn = document.getElementById('delete-btn');
+        const framesContainer = document.getElementById('frames');
+        const canvasPreview = document.getElementById('canvas-preview');
+        const ctx = canvasPreview.getContext('2d');
+        const countDisplay = document.getElementById('count');
+
+        let capturedFrames = [];
 
         function checkPass() {
-            const input = document.getElementById('pass-input').value;
-            const error = document.getElementById('error-msg');
-            
-            if (input === SECRET_PASSWORD) {
-                // パスコードが合っていたら
+            if (document.getElementById('pass-input').value === SECRET_PASSWORD) {
                 document.getElementById('lock-screen').style.display = 'none';
                 document.getElementById('main-content').style.display = 'block';
-                startCamera(); // カメラ起動
+                startCamera();
             } else {
-                error.innerText = "パスコードが違います。";
+                document.getElementById('error-msg').innerText = "パスコードが違います。";
             }
         }
 
-        const video = document.getElementById('video');
-        const shutter = document.getElementById('shutter');
-        const framesContainer = document.getElementById('frames');
-        let capturedFrames = [];
-
-        function startCamera() {
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(stream => { video.srcObject = stream; });
+        async function startCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+                canvasPreview.width = video.videoWidth;
+                canvasPreview.height = video.videoHeight;
+            };
         }
 
+        // 撮影
         shutter.onclick = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0);
-            const imgUrl = canvas.toDataURL('image/png');
+            const c = document.createElement('canvas');
+            c.width = video.videoWidth;
+            c.height = video.videoHeight;
+            c.getContext('2d').drawImage(video, 0, 0);
+            const imgUrl = c.toDataURL('image/png');
             capturedFrames.push(imgUrl);
-            const img = document.createElement('img');
-            img.src = imgUrl;
-            framesContainer.appendChild(img);
+            updateFrames();
+        };
+
+        // 1つ削除
+        deleteBtn.onclick = () => {
+            capturedFrames.pop();
+            updateFrames();
+        };
+
+        function updateFrames() {
+            framesContainer.innerHTML = '';
+            capturedFrames.forEach(src => {
+                const img = document.createElement('img');
+                img.src = src;
+                framesContainer.appendChild(img);
+            });
+            countDisplay.innerText = capturedFrames.length;
+        }
+
+        // 再生
+        playBtn.onclick = () => {
+            if (capturedFrames.length === 0) return;
+            let i = 0;
+            const fps = document.getElementById('fps').value;
+            const interval = setInterval(() => {
+                const img = new Image();
+                img.src = capturedFrames[i];
+                img.onload = () => ctx.drawImage(img, 0, 0);
+                i++;
+                if (i >= capturedFrames.length) clearInterval(interval);
+            }, 1000 / fps);
+        };
+
+        // ダウンロード (WebM形式)
+        downloadBtn.onclick = () => {
+            if (capturedFrames.length === 0) return;
+            const fps = document.getElementById('fps').value;
+            const stream = canvasPreview.captureStream(fps);
+            const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+            const chunks = [];
+
+            recorder.ondataavailable = e => chunks.push(e.data);
+            recorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'koma-movie.webm';
+                a.click();
+            };
+
+            recorder.start();
+            let i = 0;
+            const interval = setInterval(() => {
+                const img = new Image();
+                img.src = capturedFrames[i];
+                img.onload = () => ctx.drawImage(img, 0, 0);
+                i++;
+                if (i >= capturedFrames.length) {
+                    clearInterval(interval);
+                    setTimeout(() => recorder.stop(), 500);
+                }
+            }, 1000 / fps);
         };
     </script>
 </body>
