@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>STOPMOTION CAMERA PRO</title>
+    <title>STOPMOTION CAMERA PRO + DOWNLOAD</title>
     <style>
         :root {
             --bg: #121212; --panel: #1e1e1e; --accent: #ff4757;
@@ -15,29 +15,29 @@
         .lock-card { background: var(--panel); padding: 40px; border-radius: 12px; border: 1px solid var(--blue); text-align: center; }
         input[type="password"] { font-size: 20px; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; width: 200px; text-align: center; margin-bottom: 20px; outline: none; }
 
-        /* ヘッダー */
         header { background: #000; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
         .status { font-weight: bold; color: var(--blue); }
 
-        /* メインエリア */
         .container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; }
         .monitor-wrapper { position: relative; width: 640px; height: 480px; background: #000; border: 3px solid #333; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         video, canvas { position: absolute; top: 0; left: 0; width: 640px; height: 480px; }
         #onion-layer { opacity: 0.4; pointer-events: none; }
 
-        /* コントロールパネル (GUI) */
         .controls { display: flex; gap: 15px; margin-top: 15px; align-items: center; flex-wrap: wrap; justify-content: center; }
         .btn { padding: 12px 24px; font-size: 15px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; color: white; }
         .btn:hover { opacity: 0.8; transform: translateY(-1px); }
         .btn-shoot { background: var(--accent); font-size: 18px; padding: 15px 40px; }
         .btn-play { background: var(--blue); }
-        .btn-undo { background: #57606f; } /* 一つ削除 */
-        .btn-clear { background: #333; border: 1px solid #555; font-size: 12px; } /* 全削除 */
+        .btn-download { background: var(--green); } /* 動画ダウンロード */
+        .btn-undo { background: #57606f; }
+        .btn-reset { background: #333; border: 1px solid #ff4757; color: #ff4757; font-size: 12px; }
 
-        /* 下部ギャラリー */
         .gallery { height: 110px; background: #0a0a0a; display: flex; gap: 6px; padding: 8px; overflow-x: auto; border-top: 1px solid #222; }
         .gallery-item { height: 90px; border: 1px solid #444; position: relative; }
         .gallery-item span { position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.7); font-size: 10px; padding: 2px 4px; }
+        
+        /* 書き出し中のオーバーレイ */
+        #export-msg { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; }
     </style>
 </head>
 <body>
@@ -51,6 +51,11 @@
     </div>
 </div>
 
+<div id="export-msg">
+    <h2>🎬 動画を作成中...</h2>
+    <p>そのまま少しお待ちください。</p>
+</div>
+
 <header>
     <div class="status">🎬 STOPMOTION STUDIO</div>
     <div>コマ数: <span id="count" style="font-size: 20px;">0</span></div>
@@ -59,13 +64,16 @@
 <div class="container">
     <div class="monitor-wrapper">
         <video id="video" autoplay playsinline muted></video>
-        <canvas id="onion-layer"></canvas> <canvas id="play-canvas" style="display:none;"></canvas> </div>
+        <canvas id="onion-layer"></canvas> 
+        <canvas id="play-canvas" style="display:none;"></canvas>
+    </div>
 
     <div class="controls">
         <button class="btn btn-shoot" onclick="takePhoto()">📸 撮影 (Enter)</button>
         <button class="btn btn-play" id="play-btn" onclick="togglePlay()">⏯️ 再生</button>
-        <button class="btn btn-undo" onclick="deleteLast()">↩️ 1つ削除</button>
-        <button class="btn btn-clear" onclick="clearPhotos()">🗑️ 全削除</button>
+        <button class="btn btn-download" onclick="downloadVideo()">💾 動画を保存</button>
+        <button class="btn btn-undo" onclick="deleteLast()">↩️ 1つ戻る</button>
+        <button class="btn btn-reset" onclick="resetAll()">🔄 すべてをリセット</button>
         <div style="font-size: 12px; color: #888;">
             速度: <input type="number" id="fps" value="10" style="width:40px; background:#000; color:#fff; border:1px solid #444;"> fps
         </div>
@@ -113,25 +121,19 @@
         updateOnionSkin(data);
     }
 
-    // 1つ削除 (直前のコマを消す)
     function deleteLast() {
         if(frames.length === 0) return;
-        if(confirm("最新の1コマを削除しますか？")) {
+        if(confirm("直前の1コマを消して、撮り直しますか？")) {
             frames.pop();
             updateUI();
-            // オニオンスキンを新しい「最後の1枚」に更新
-            if(frames.length > 0) {
-                updateOnionSkin(frames[frames.length - 1]);
-            } else {
-                oCtx.clearRect(0, 0, 640, 480);
-            }
+            if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
+            else oCtx.clearRect(0, 0, 640, 480);
         }
     }
 
-    // 全削除
-    function clearPhotos() {
+    function resetAll() {
         if(frames.length === 0) return;
-        if(confirm("撮った写真をすべて削除してもよろしいですか？")) {
+        if(confirm("最初からやり直しますか？")) {
             frames = [];
             oCtx.clearRect(0, 0, 640, 480);
             updateUI();
@@ -140,10 +142,7 @@
 
     function updateOnionSkin(src) {
         const img = new Image();
-        img.onload = () => {
-            oCtx.clearRect(0, 0, 640, 480);
-            oCtx.drawImage(img, 0, 0);
-        };
+        img.onload = () => { oCtx.clearRect(0, 0, 640, 480); oCtx.drawImage(img, 0, 0); };
         img.src = src;
     }
 
@@ -151,20 +150,17 @@
         document.getElementById('count').innerText = frames.length;
         const gal = document.getElementById('gallery');
         gal.innerHTML = '';
-        // ギャラリーには新しい順（右側が新しい）に表示
         frames.forEach((src, index) => {
             const div = document.createElement('div');
             div.className = 'gallery-item';
             const img = document.createElement('img');
-            img.src = src;
-            img.style.height = "90px";
+            img.src = src; img.style.height = "90px";
             const label = document.createElement('span');
             label.innerText = index + 1;
-            div.appendChild(img);
-            div.appendChild(label);
+            div.appendChild(img); div.appendChild(label);
             gal.appendChild(div);
         });
-        gal.scrollLeft = gal.scrollWidth; // 常に最新コマへスクロール
+        gal.scrollLeft = gal.scrollWidth; 
     }
 
     function togglePlay() {
@@ -173,12 +169,10 @@
         const btn = document.getElementById('play-btn');
         if(isPlaying) {
             btn.innerText = "⏹️ 停止";
-            btn.style.background = "#57606f";
             playCanvas.style.display = "block";
             playLoop();
         } else {
             btn.innerText = "⏯️ 再生";
-            btn.style.background = "#00a8ff";
             playCanvas.style.display = "none";
         }
     }
@@ -195,12 +189,50 @@
         img.src = frames[playIdx];
     }
 
-    window.onkeydown = (e) => { 
-        if(e.key === 'Enter') {
-            e.preventDefault();
-            takePhoto();
+    // --- 【新機能】動画ダウンロード ---
+    async function downloadVideo() {
+        if(frames.length === 0) { alert("写真がありません"); return; }
+        
+        isPlaying = false; // 再生中なら止める
+        document.getElementById('export-msg').style.display = 'flex';
+        
+        const currentFps = document.getElementById('fps').value;
+        const stream = playCanvas.captureStream(currentFps);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        const chunks = [];
+
+        recorder.ondataavailable = (e) => chunks.push(e.data);
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'stopmotion_movie.webm';
+            a.click();
+            document.getElementById('export-msg').style.display = 'none';
+        };
+
+        recorder.start();
+        playCanvas.style.display = "block";
+
+        // 全フレームを順番にCanvasへ描画して録画する
+        for(let i = 0; i < frames.length; i++) {
+            await new Promise(resolve => {
+                const img = new Image();
+                img.onload = () => {
+                    pCtx.clearRect(0, 0, 640, 480);
+                    pCtx.drawImage(img, 0, 0);
+                    setTimeout(resolve, 1000 / currentFps); // FPSに合わせて待機
+                };
+                img.src = frames[i];
+            });
         }
-    };
+
+        recorder.stop();
+        playCanvas.style.display = "none";
+    }
+
+    window.onkeydown = (e) => { if(e.key === 'Enter') takePhoto(); };
 </script>
 </body>
 </html>
