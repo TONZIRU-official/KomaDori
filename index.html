@@ -2,126 +2,156 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>コマ撮りメーカー Ultra Pro</title>
+    <title>コマ撮りメーカー Ultra Pro (Locked)</title>
     <style>
         :root { --primary: #00a8ff; --accent: #e84118; --dark: #1e2124; --panel: #2f3640; --track: #353b48; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--dark); color: white; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
         
-        /* Layout */
+        /* パスコードロック画面 */
+        #lock-screen {
+            position: fixed; inset: 0; background: #111; z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .lock-box { background: #222; padding: 40px; border-radius: 15px; border: 2px solid var(--primary); text-align: center; }
+        #pass-input { font-size: 24px; padding: 10px; width: 200px; margin: 20px 0; border-radius: 5px; border: none; text-align: center; }
+
+        /* メインUI（初期状態は非表示） */
+        #app-container { display: none; flex-direction: column; height: 100vh; }
+        
         header { background: #111; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; }
         .main-layout { display: flex; flex: 1; overflow: hidden; }
         .preview-section { flex: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000; position: relative; }
         .properties-panel { flex: 1.2; background: var(--panel); padding: 15px; overflow-y: auto; border-left: 2px solid #000; font-size: 13px; }
         
-        /* Canvas */
         .canvas-wrapper { position: relative; background: #000; line-height: 0; }
-        canvas, video { max-width: 100%; max-height: 65vh; object-fit: contain; }
+        canvas, video { max-width: 100%; max-height: 60vh; object-fit: contain; }
 
-        /* Timeline */
         .timeline-container { height: 240px; background: #111; border-top: 3px solid #000; display: flex; flex-direction: column; }
         .timeline-scroll { flex: 1; overflow-x: auto; overflow-y: auto; position: relative; padding: 10px 0; }
         .timeline-row { height: 35px; background: var(--track); margin: 4px 0; position: relative; min-width: 5000px; border-radius: 2px; }
         .item-block { position: absolute; height: 25px; top: 5px; background: var(--primary); border: 1px solid #fff; border-radius: 4px; cursor: pointer; display: flex; align-items: center; padding: 0 8px; font-size: 11px; white-space: nowrap; overflow: hidden; }
         .playhead { position: absolute; top: 0; width: 2px; height: 100%; background: #fbc531; z-index: 100; pointer-events: none; }
 
-        /* UI Parts */
-        .prop-group { margin-bottom: 15px; border-bottom: 1px solid #444; padding-bottom: 10px; }
-        .prop-group h3 { margin: 0 0 8px 0; font-size: 12px; color: var(--primary); text-transform: uppercase; }
         .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
         .btn-capture { background: var(--accent); color: white; }
         .btn-tool { background: #444; color: white; margin: 2px; }
-        .btn-tool:hover { background: #666; }
-        input, select { background: #111; color: white; border: 1px solid #555; padding: 4px; width: 100%; box-sizing: border-box; }
         .flex-row { display: flex; gap: 5px; margin-top: 5px; }
+        input[type="range"] { width: 100%; }
     </style>
 </head>
 <body>
 
-<header>
-    <div style="font-weight: bold; color: var(--primary);">🎬 STOPMOTION ULTRA PRO</div>
-    <div style="display:flex; gap:10px;">
-        <button class="btn btn-tool" onclick="setMode('shoot')" id="tab-shoot">📷 撮影</button>
-        <button class="btn btn-tool" onclick="setMode('edit')" id="tab-edit">✂️ 編集</button>
-        <button class="btn btn-capture" onclick="exportVideo()">💾 完成保存</button>
+<div id="lock-screen">
+    <div class="lock-box">
+        <h2 style="margin:0;">🔑 コマ撮り Ultra Pro</h2>
+        <p style="color:#aaa;">パスコードを入力してください</p>
+        <input type="password" id="pass-input" placeholder="****">
+        <br>
+        <button class="btn btn-tool" style="width:100%; font-size:16px;" onclick="checkPass()">入室</button>
+        <p id="error-msg" style="color:red; font-size:12px; margin-top:10px;"></p>
     </div>
-</header>
-
-<div class="main-layout">
-    <section class="preview-section">
-        <div class="canvas-wrapper">
-            <video id="video" autoplay playsinline></video>
-            <canvas id="onion-layer" style="position:absolute; top:0; left:0; opacity:0.4; pointer-events:none;"></canvas>
-            <canvas id="main-canvas"></canvas>
-        </div>
-        <div style="padding:15px; display:flex; gap:10px; align-items:center;">
-            <button class="btn btn-capture" id="shutter-btn" onclick="takePhoto()">📸 撮影 (Enter)</button>
-            <button class="btn btn-tool" onclick="togglePlay()">⏯️ 再生/停止</button>
-            <div style="font-size:12px;">スピード: <input type="number" id="fps-input" value="10" style="width:40px;" oninput="fps=this.value"> fps</div>
-            <div style="font-size:12px;">Frames: <span id="frame-count">0</span></div>
-        </div>
-    </section>
-
-    <aside class="properties-panel">
-        <div id="no-selection">アイテムを追加するか、タイムラインのブロックを選択してください</div>
-        
-        <div id="editor-ui" style="display:none;">
-            <div class="prop-group">
-                <h3>テキスト / スタンプ</h3>
-                <input type="text" id="prop-text" oninput="updateItem()" placeholder="文字を入力">
-                <div class="flex-row">
-                    <button class="btn btn-tool" onclick="addShape('⭐')">⭐</button>
-                    <button class="btn btn-tool" onclick="addShape('💬')">💬</button>
-                    <button class="btn btn-tool" onclick="addShape('❤️')">❤️</button>
-                    <button class="btn btn-tool" onclick="addShape('💥')">💥</button>
-                </div>
-            </div>
-            <div class="prop-group">
-                <h3>スタイル</h3>
-                色: <input type="color" id="prop-color" oninput="updateItem()">
-                縁: <input type="color" id="prop-stroke" oninput="updateItem()" value="#000000">
-                サイズ: <input type="range" id="prop-size" min="10" max="200" oninput="updateItem()">
-            </div>
-            <div class="prop-group">
-                <h3>エフェクト</h3>
-                不透明度: <input type="range" id="prop-alpha" min="0" max="100" value="100" oninput="updateItem()">
-                <label><input type="checkbox" id="prop-fade" onchange="updateItem()"> フェードアウト有効</label>
-            </div>
-            <div class="prop-group">
-                <h3>配置 (ドラッグでも移動可)</h3>
-                X: <input type="range" id="prop-x" min="0" max="640" oninput="updateItem()">
-                Y: <input type="range" id="prop-y" min="0" max="480" oninput="updateItem()">
-            </div>
-            <button class="btn btn-capture" style="width:100%" onclick="deleteItem()">🗑️ 削除</button>
-        </div>
-
-        <div style="margin-top:20px;">
-            <button class="btn btn-tool" style="width:100%" onclick="addItem('text')">➕ 新しい字幕を追加</button>
-        </div>
-    </aside>
 </div>
 
-<div class="timeline-container">
-    <div class="timeline-scroll" id="tl-scroll" onclick="seek(event)">
-        <div class="playhead" id="playhead"></div>
-        <div class="timeline-row" id="track-1"></div>
-        <div class="timeline-row" id="track-2"></div>
+<div id="app-container">
+    <header>
+        <div style="font-weight: bold; color: var(--primary);">🎬 STOPMOTION ULTRA PRO</div>
+        <div style="display:flex; gap:10px;">
+            <button class="btn btn-tool" onclick="setMode('shoot')" id="tab-shoot">📷 撮影</button>
+            <button class="btn btn-tool" onclick="setMode('edit')" id="tab-edit">✂️ 編集</button>
+            <button class="btn btn-capture" onclick="exportVideo()">💾 完成保存</button>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <section class="preview-section">
+            <div class="canvas-wrapper">
+                <video id="video" autoplay playsinline></video>
+                <canvas id="onion-layer" style="position:absolute; top:0; left:0; opacity:0.4; pointer-events:none;"></canvas>
+                <canvas id="main-canvas"></canvas>
+            </div>
+            <div style="padding:15px; display:flex; gap:10px; align-items:center;">
+                <button class="btn btn-capture" id="shutter-btn" onclick="takePhoto()">📸 撮影 (Enter)</button>
+                <button class="btn btn-tool" onclick="togglePlay()">⏯️ 再生/停止</button>
+                <div style="font-size:12px;">スピード: <input type="number" id="fps-input" value="10" style="width:40px; background:#111; color:white; border:1px solid #555;" oninput="fps=this.value"> fps</div>
+                <div style="font-size:12px;">Frames: <span id="frame-count">0</span></div>
+            </div>
+        </section>
+
+        <aside class="properties-panel">
+            <div id="no-selection">アイテムを追加するか、タイムラインを選択してください</div>
+            <div id="editor-ui" style="display:none;">
+                <div style="margin-bottom:15px; border-bottom:1px solid #444; padding-bottom:10px;">
+                    <h3 style="font-size:12px; color:var(--primary);">テキスト / スタンプ</h3>
+                    <input type="text" id="prop-text" oninput="updateItem()" style="background:#111; color:white; border:1px solid #555; width:100%; padding:4px;">
+                    <div class="flex-row">
+                        <button class="btn btn-tool" onclick="addShape('⭐')">⭐</button>
+                        <button class="btn btn-tool" onclick="addShape('💬')">💬</button>
+                        <button class="btn btn-tool" onclick="addShape('❤️')">❤️</button>
+                        <button class="btn btn-tool" onclick="addShape('💥')">💥</button>
+                    </div>
+                </div>
+                <div style="margin-bottom:15px; border-bottom:1px solid #444; padding-bottom:10px;">
+                    <h3 style="font-size:12px; color:var(--primary);">スタイル設定</h3>
+                    色: <input type="color" id="prop-color" oninput="updateItem()"><br>
+                    縁: <input type="color" id="prop-stroke" oninput="updateItem()" value="#000000"><br>
+                    不透明度: <input type="range" id="prop-alpha" min="0" max="100" value="100" oninput="updateItem()"><br>
+                    サイズ: <input type="range" id="prop-size" min="10" max="200" oninput="updateItem()">
+                </div>
+                <div style="margin-bottom:15px; border-bottom:1px solid #444; padding-bottom:10px;">
+                    <h3 style="font-size:12px; color:var(--primary);">位置とエフェクト</h3>
+                    X: <input type="range" id="prop-x" min="0" max="640" oninput="updateItem()">
+                    Y: <input type="range" id="prop-y" min="0" max="480" oninput="updateItem()">
+                    <label style="display:block; margin-top:5px;"><input type="checkbox" id="prop-fade" onchange="updateItem()"> フェードアウト有効</label>
+                </div>
+                <button class="btn btn-capture" style="width:100%" onclick="deleteItem()">🗑️ 削除</button>
+            </div>
+            <button class="btn btn-tool" style="width:100%; margin-top:10px; border:1px dashed #666;" onclick="addItem()">➕ 字幕・アイテム追加</button>
+        </aside>
+    </div>
+
+    <div class="timeline-container">
+        <div class="timeline-scroll" id="tl-scroll" onclick="seek(event)">
+            <div class="playhead" id="playhead"></div>
+            <div class="timeline-row" id="track-1"></div>
+        </div>
     </div>
 </div>
 
 <script>
+    const SECRET_PASSWORD = "QXJ0U3Rvc"; // パスコード
     let frames = [], items = [], mode = 'shoot', curTime = 0, isPlaying = false, selectedId = null, fps = 10;
     const pxPerSec = 80;
-    const video = document.getElementById('video'), mainCanvas = document.getElementById('main-canvas'), mCtx = mainCanvas.getContext('2d'), onionCanvas = document.getElementById('onion-layer'), oCtx = onionCanvas.getContext('2d');
 
-    navigator.mediaDevices.getUserMedia({video: {width:640, height:480}}).then(s => {
-        video.srcObject = s;
-        video.onloadedmetadata = () => { mainCanvas.width = onionCanvas.width = video.videoWidth; mainCanvas.height = onionCanvas.height = video.videoHeight; };
-    });
+    const video = document.getElementById('video');
+    const mainCanvas = document.getElementById('main-canvas');
+    const mCtx = mainCanvas.getContext('2d');
+    const onionCanvas = document.getElementById('onion-layer');
+    const oCtx = onionCanvas.getContext('2d');
+
+    // パスコードチェック
+    function checkPass() {
+        const input = document.getElementById('pass-input').value;
+        if (input === SECRET_PASSWORD) {
+            document.getElementById('lock-screen').style.display = 'none';
+            document.getElementById('app-container').style.display = 'flex';
+            initApp();
+        } else {
+            document.getElementById('error-msg').innerText = "パスコードが正しくありません";
+        }
+    }
+
+    function initApp() {
+        navigator.mediaDevices.getUserMedia({video: {width:640, height:480}}).then(s => {
+            video.srcObject = s;
+            video.onloadedmetadata = () => {
+                mainCanvas.width = onionCanvas.width = video.videoWidth;
+                mainCanvas.height = onionCanvas.height = video.videoHeight;
+            };
+        });
+    }
 
     function setMode(m) {
         mode = m;
-        document.getElementById('tab-shoot').classList.toggle('active', m==='shoot');
-        document.getElementById('tab-edit').classList.toggle('active', m==='edit');
         video.style.display = m==='shoot' ? 'block' : 'none';
         onionCanvas.style.display = m==='shoot' ? 'block' : 'none';
         if(m==='edit') draw();
@@ -137,14 +167,14 @@
         img.onload = () => { oCtx.clearRect(0,0,640,480); oCtx.drawImage(img, 0, 0); };
     }
 
-    function addItem(type) {
+    function addItem() {
         const id = Date.now();
-        items.push({ id, text: "テキスト", start: curTime, end: curTime+2, x: 320, y: 400, color: "#ffffff", stroke: "#000000", size: 40, alpha: 1, fade: false, track: 1 });
+        items.push({ id, text: "テキスト", start: curTime, end: curTime+2, x: 320, y: 400, color: "#ffffff", stroke: "#000000", size: 40, alpha: 1, fade: false });
         renderTimeline(); selectItem(id); setMode('edit');
     }
 
     function addShape(emoji) {
-        if(!selectedId) addItem('text');
+        if(!selectedId) addItem();
         const item = items.find(i => i.id === selectedId);
         item.text = emoji; item.size = 80; updateItem();
     }
@@ -196,12 +226,9 @@
             mCtx.clearRect(0,0,640,480); mCtx.drawImage(img, 0, 0);
             items.forEach(item => {
                 if(curTime >= item.start && curTime <= item.end) {
-                    let currentAlpha = item.alpha;
-                    if(item.fade) {
-                        const remaining = item.end - curTime;
-                        if(remaining < 0.5) currentAlpha *= (remaining / 0.5);
-                    }
-                    mCtx.globalAlpha = currentAlpha;
+                    let a = item.alpha;
+                    if(item.fade && (item.end - curTime < 0.5)) a *= ((item.end - curTime) / 0.5);
+                    mCtx.globalAlpha = a;
                     mCtx.font = `bold ${item.size}px sans-serif`;
                     mCtx.textAlign = "center"; mCtx.lineJoin = "round";
                     mCtx.lineWidth = item.size / 6; mCtx.strokeStyle = item.stroke;
