@@ -2,40 +2,37 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>コマ撮りメーカー Ultra Pro (Locked)</title>
+    <title>コマ撮りメーカー Ultra Pro</title>
     <style>
         :root { --primary: #00a8ff; --accent: #e84118; --dark: #1e2124; --panel: #2f3640; --track: #353b48; }
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--dark); color: white; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        body { font-family: sans-serif; background: var(--dark); color: white; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
         
-        /* パスコードロック画面 */
-        #lock-screen {
-            position: fixed; inset: 0; background: #111; z-index: 9999;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-        }
+        /* パスコード画面 */
+        #lock-screen { position: fixed; inset: 0; background: #111; z-index: 9999; display: flex; align-items: center; justify-content: center; }
         .lock-box { background: #222; padding: 40px; border-radius: 15px; border: 2px solid var(--primary); text-align: center; }
         #pass-input { font-size: 24px; padding: 10px; width: 200px; margin: 20px 0; border-radius: 5px; border: none; text-align: center; }
 
-        /* メインUI（初期状態は非表示） */
+        /* メインUI */
         #app-container { display: none; flex-direction: column; height: 100vh; }
-        
         header { background: #111; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; }
         .main-layout { display: flex; flex: 1; overflow: hidden; }
         .preview-section { flex: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000; position: relative; }
         .properties-panel { flex: 1.2; background: var(--panel); padding: 15px; overflow-y: auto; border-left: 2px solid #000; font-size: 13px; }
         
-        .canvas-wrapper { position: relative; background: #000; line-height: 0; }
-        canvas, video { max-width: 100%; max-height: 60vh; object-fit: contain; }
+        .canvas-wrapper { position: relative; background: #000; width: 640px; height: 480px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        canvas, video { position: absolute; top: 0; left: 0; width: 640px; height: 480px; object-fit: contain; }
 
-        .timeline-container { height: 240px; background: #111; border-top: 3px solid #000; display: flex; flex-direction: column; }
-        .timeline-scroll { flex: 1; overflow-x: auto; overflow-y: auto; position: relative; padding: 10px 0; }
-        .timeline-row { height: 35px; background: var(--track); margin: 4px 0; position: relative; min-width: 5000px; border-radius: 2px; }
-        .item-block { position: absolute; height: 25px; top: 5px; background: var(--primary); border: 1px solid #fff; border-radius: 4px; cursor: pointer; display: flex; align-items: center; padding: 0 8px; font-size: 11px; white-space: nowrap; overflow: hidden; }
+        /* タイムライン */
+        .timeline-container { height: 200px; background: #111; border-top: 3px solid #000; display: flex; flex-direction: column; }
+        .timeline-scroll { flex: 1; overflow-x: auto; position: relative; padding: 10px 0; cursor: crosshair; }
+        .timeline-row { height: 40px; background: var(--track); margin: 5px 0; position: relative; min-width: 5000px; }
+        .item-block { position: absolute; height: 30px; top: 5px; background: var(--primary); border: 1px solid #fff; border-radius: 4px; cursor: pointer; display: flex; align-items: center; padding: 0 8px; font-size: 11px; z-index: 2; }
         .playhead { position: absolute; top: 0; width: 2px; height: 100%; background: #fbc531; z-index: 100; pointer-events: none; }
 
-        .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
+        .btn { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .btn-capture { background: var(--accent); color: white; }
-        .btn-tool { background: #444; color: white; margin: 2px; }
-        .flex-row { display: flex; gap: 5px; margin-top: 5px; }
+        .btn-tool { background: #444; color: white; }
+        .active-tab { border-bottom: 3px solid var(--primary); border-radius: 0; }
         input[type="range"] { width: 100%; }
     </style>
 </head>
@@ -43,69 +40,55 @@
 
 <div id="lock-screen">
     <div class="lock-box">
-        <h2 style="margin:0;">🔑 コマ撮り Ultra Pro</h2>
-        <p style="color:#aaa;">パスコードを入力してください</p>
-        <input type="password" id="pass-input" placeholder="****">
-        <br>
-        <button class="btn btn-tool" style="width:100%; font-size:16px;" onclick="checkPass()">入室</button>
-        <p id="error-msg" style="color:red; font-size:12px; margin-top:10px;"></p>
+        <h2>🔑 STOPMOTION PRO</h2>
+        <input type="password" id="pass-input" placeholder="パスコード">
+        <button class="btn btn-tool" style="width:100%" onclick="checkPass()">入室</button>
     </div>
 </div>
 
 <div id="app-container">
     <header>
-        <div style="font-weight: bold; color: var(--primary);">🎬 STOPMOTION ULTRA PRO</div>
+        <div style="font-weight: bold;">🎬 STOPMOTION ULTRA PRO</div>
         <div style="display:flex; gap:10px;">
-            <button class="btn btn-tool" onclick="setMode('shoot')" id="tab-shoot">📷 撮影</button>
-            <button class="btn btn-tool" onclick="setMode('edit')" id="tab-edit">✂️ 編集</button>
-            <button class="btn btn-capture" onclick="exportVideo()">💾 完成保存</button>
+            <button class="btn btn-tool" id="tab-shoot" onclick="setMode('shoot')">📷 撮影モード</button>
+            <button class="btn btn-tool" id="tab-edit" onclick="setMode('edit')">✂️ 編集モード</button>
+            <button class="btn btn-capture" onclick="exportVideo()">🎬 書き出し</button>
         </div>
     </header>
 
     <div class="main-layout">
         <section class="preview-section">
             <div class="canvas-wrapper">
-                <video id="video" autoplay playsinline></video>
-                <canvas id="onion-layer" style="position:absolute; top:0; left:0; opacity:0.4; pointer-events:none;"></canvas>
+                <video id="video" autoplay playsinline muted></video>
+                <canvas id="onion-layer" style="opacity: 0.4; pointer-events: none;"></canvas>
                 <canvas id="main-canvas"></canvas>
             </div>
-            <div style="padding:15px; display:flex; gap:10px; align-items:center;">
-                <button class="btn btn-capture" id="shutter-btn" onclick="takePhoto()">📸 撮影 (Enter)</button>
+            <div style="margin-top:15px; display:flex; gap:20px; align-items:center;">
+                <button class="btn btn-capture" id="shutter-btn" onclick="takePhoto()" style="font-size:1.2em;">📸 撮影 (Enter)</button>
                 <button class="btn btn-tool" onclick="togglePlay()">⏯️ 再生/停止</button>
-                <div style="font-size:12px;">スピード: <input type="number" id="fps-input" value="10" style="width:40px; background:#111; color:white; border:1px solid #555;" oninput="fps=this.value"> fps</div>
-                <div style="font-size:12px;">Frames: <span id="frame-count">0</span></div>
+                <span>枚数: <b id="frame-count">0</b></span>
+                <span>速度: <input type="number" id="fps-input" value="10" style="width:40px; background:#000; color:#fff;" oninput="fps=this.value"> fps</span>
             </div>
         </section>
 
         <aside class="properties-panel">
-            <div id="no-selection">アイテムを追加するか、タイムラインを選択してください</div>
+            <div id="no-selection">アイテムを追加するか、青いブロックを選択してください</div>
             <div id="editor-ui" style="display:none;">
-                <div style="margin-bottom:15px; border-bottom:1px solid #444; padding-bottom:10px;">
-                    <h3 style="font-size:12px; color:var(--primary);">テキスト / スタンプ</h3>
-                    <input type="text" id="prop-text" oninput="updateItem()" style="background:#111; color:white; border:1px solid #555; width:100%; padding:4px;">
-                    <div class="flex-row">
-                        <button class="btn btn-tool" onclick="addShape('⭐')">⭐</button>
-                        <button class="btn btn-tool" onclick="addShape('💬')">💬</button>
-                        <button class="btn btn-tool" onclick="addShape('❤️')">❤️</button>
-                        <button class="btn btn-tool" onclick="addShape('💥')">💥</button>
-                    </div>
+                <h3 style="color:var(--primary)">アイテム編集</h3>
+                テキスト/絵文字: <input type="text" id="prop-text" oninput="updateItem()" style="width:100%; margin-bottom:10px;">
+                <div style="display:flex; gap:5px; margin-bottom:15px;">
+                    <button onclick="addShape('⭐')">⭐</button><button onclick="addShape('💬')">💬</button><button onclick="addShape('❤️')">❤️</button><button onclick="addShape('🔥')">🔥</button>
                 </div>
-                <div style="margin-bottom:15px; border-bottom:1px solid #444; padding-bottom:10px;">
-                    <h3 style="font-size:12px; color:var(--primary);">スタイル設定</h3>
-                    色: <input type="color" id="prop-color" oninput="updateItem()"><br>
-                    縁: <input type="color" id="prop-stroke" oninput="updateItem()" value="#000000"><br>
-                    不透明度: <input type="range" id="prop-alpha" min="0" max="100" value="100" oninput="updateItem()"><br>
-                    サイズ: <input type="range" id="prop-size" min="10" max="200" oninput="updateItem()">
-                </div>
-                <div style="margin-bottom:15px; border-bottom:1px solid #444; padding-bottom:10px;">
-                    <h3 style="font-size:12px; color:var(--primary);">位置とエフェクト</h3>
-                    X: <input type="range" id="prop-x" min="0" max="640" oninput="updateItem()">
-                    Y: <input type="range" id="prop-y" min="0" max="480" oninput="updateItem()">
-                    <label style="display:block; margin-top:5px;"><input type="checkbox" id="prop-fade" onchange="updateItem()"> フェードアウト有効</label>
-                </div>
-                <button class="btn btn-capture" style="width:100%" onclick="deleteItem()">🗑️ 削除</button>
+                色: <input type="color" id="prop-color" oninput="updateItem()"><br>
+                縁: <input type="color" id="prop-stroke" oninput="updateItem()" value="#000000"><br>
+                サイズ: <input type="range" id="prop-size" min="10" max="250" oninput="updateItem()"><br>
+                不透明度: <input type="range" id="prop-alpha" min="0" max="100" oninput="updateItem()"><br>
+                横位置: <input type="range" id="prop-x" min="0" max="640" oninput="updateItem()"><br>
+                縦位置: <input type="range" id="prop-y" min="0" max="480" oninput="updateItem()"><br>
+                <label><input type="checkbox" id="prop-fade" onchange="updateItem()"> フェードアウト</label><br><br>
+                <button class="btn btn-capture" onclick="deleteItem()" style="width:100%">🗑️ 削除</button>
             </div>
-            <button class="btn btn-tool" style="width:100%; margin-top:10px; border:1px dashed #666;" onclick="addItem()">➕ 字幕・アイテム追加</button>
+            <button class="btn btn-tool" style="width:100%; margin-top:20px;" onclick="addItem()">➕ 新しい字幕を追加</button>
         </aside>
     </div>
 
@@ -118,53 +101,49 @@
 </div>
 
 <script>
-    const SECRET_PASSWORD = "QXJ0U3Rvc"; // パスコード
+    const SECRET_PASSWORD = "ArtStop"; 
     let frames = [], items = [], mode = 'shoot', curTime = 0, isPlaying = false, selectedId = null, fps = 10;
-    const pxPerSec = 80;
+    const pxPerSec = 100;
 
-    const video = document.getElementById('video');
-    const mainCanvas = document.getElementById('main-canvas');
-    const mCtx = mainCanvas.getContext('2d');
-    const onionCanvas = document.getElementById('onion-layer');
-    const oCtx = onionCanvas.getContext('2d');
+    const video = document.getElementById('video'), mainCanvas = document.getElementById('main-canvas'), mCtx = mainCanvas.getContext('2d'), onionCanvas = document.getElementById('onion-layer'), oCtx = onionCanvas.getContext('2d');
 
-    // パスコードチェック
     function checkPass() {
-        const input = document.getElementById('pass-input').value;
-        if (input === SECRET_PASSWORD) {
+        if (document.getElementById('pass-input').value === SECRET_PASSWORD) {
             document.getElementById('lock-screen').style.display = 'none';
             document.getElementById('app-container').style.display = 'flex';
             initApp();
-        } else {
-            document.getElementById('error-msg').innerText = "パスコードが正しくありません";
         }
     }
 
-    function initApp() {
-        navigator.mediaDevices.getUserMedia({video: {width:640, height:480}}).then(s => {
-            video.srcObject = s;
-            video.onloadedmetadata = () => {
-                mainCanvas.width = onionCanvas.width = video.videoWidth;
-                mainCanvas.height = onionCanvas.height = video.videoHeight;
-            };
-        });
+    async function initApp() {
+        const stream = await navigator.mediaDevices.getUserMedia({video: {width: 640, height: 480}});
+        video.srcObject = stream;
+        mainCanvas.width = onionCanvas.width = 640;
+        mainCanvas.height = onionCanvas.height = 480;
+        setMode('shoot');
     }
 
     function setMode(m) {
         mode = m;
+        document.getElementById('tab-shoot').classList.toggle('active-tab', m==='shoot');
+        document.getElementById('tab-edit').classList.toggle('active-tab', m==='edit');
         video.style.display = m==='shoot' ? 'block' : 'none';
         onionCanvas.style.display = m==='shoot' ? 'block' : 'none';
-        if(m==='edit') draw();
+        draw();
     }
 
     function takePhoto() {
-        const c = document.createElement('canvas');
-        c.width = 640; c.height = 480;
-        c.getContext('2d').drawImage(video, 0, 0);
-        frames.push(c.toDataURL('image/png'));
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 640; tempCanvas.height = 480;
+        tempCanvas.getContext('2d').drawImage(video, 0, 0);
+        const url = tempCanvas.toDataURL('image/png');
+        frames.push(url);
         document.getElementById('frame-count').innerText = frames.length;
-        const img = new Image(); img.src = frames[frames.length-1];
+
+        // オニオンスキン更新
+        const img = new Image();
         img.onload = () => { oCtx.clearRect(0,0,640,480); oCtx.drawImage(img, 0, 0); };
+        img.src = url;
     }
 
     function addItem() {
@@ -173,14 +152,11 @@
         renderTimeline(); selectItem(id); setMode('edit');
     }
 
-    function addShape(emoji) {
-        if(!selectedId) addItem();
-        const item = items.find(i => i.id === selectedId);
-        item.text = emoji; item.size = 80; updateItem();
-    }
+    function addShape(emoji) { if(selectedId) { const item = items.find(i=>i.id===selectedId); item.text = emoji; updateItem(); } }
 
     function renderTimeline() {
-        document.getElementById('track-1').innerHTML = '';
+        const track = document.getElementById('track-1');
+        track.innerHTML = '';
         items.forEach(item => {
             const div = document.createElement('div');
             div.className = 'item-block';
@@ -188,7 +164,7 @@
             div.style.left = (item.start * pxPerSec) + 'px';
             div.style.width = ((item.end - item.start) * pxPerSec) + 'px';
             div.onclick = (e) => { e.stopPropagation(); selectItem(item.id); };
-            document.getElementById('track-1').appendChild(div);
+            track.appendChild(div);
         });
     }
 
@@ -198,80 +174,105 @@
         document.getElementById('editor-ui').style.display = 'block';
         document.getElementById('prop-text').value = item.text;
         document.getElementById('prop-color').value = item.color;
+        document.getElementById('prop-stroke').value = item.stroke;
         document.getElementById('prop-size').value = item.size;
+        document.getElementById('prop-alpha').value = item.alpha * 100;
         document.getElementById('prop-x').value = item.x;
         document.getElementById('prop-y').value = item.y;
-        document.getElementById('prop-alpha').value = item.alpha * 100;
         document.getElementById('prop-fade').checked = item.fade;
     }
 
     function updateItem() {
-        const item = items.find(i => i.id === selectedId); if(!item) return;
+        const item = items.find(i => i.id === selectedId);
+        if(!item) return;
         item.text = document.getElementById('prop-text').value;
         item.color = document.getElementById('prop-color').value;
         item.stroke = document.getElementById('prop-stroke').value;
         item.size = parseInt(document.getElementById('prop-size').value);
+        item.alpha = document.getElementById('prop-alpha').value / 100;
         item.x = parseInt(document.getElementById('prop-x').value);
         item.y = parseInt(document.getElementById('prop-y').value);
-        item.alpha = document.getElementById('prop-alpha').value / 100;
         item.fade = document.getElementById('prop-fade').checked;
         renderTimeline(); draw();
     }
 
-    function draw() {
-        if(frames.length === 0) return;
+    // --- コア描画エンジン ---
+    async function draw() {
+        if(frames.length === 0) { mCtx.clearRect(0,0,640,480); return; }
         const idx = Math.min(Math.floor(curTime * fps), frames.length - 1);
-        const img = new Image(); img.src = frames[idx];
-        img.onload = () => {
-            mCtx.clearRect(0,0,640,480); mCtx.drawImage(img, 0, 0);
-            items.forEach(item => {
-                if(curTime >= item.start && curTime <= item.end) {
-                    let a = item.alpha;
-                    if(item.fade && (item.end - curTime < 0.5)) a *= ((item.end - curTime) / 0.5);
-                    mCtx.globalAlpha = a;
-                    mCtx.font = `bold ${item.size}px sans-serif`;
-                    mCtx.textAlign = "center"; mCtx.lineJoin = "round";
-                    mCtx.lineWidth = item.size / 6; mCtx.strokeStyle = item.stroke;
-                    mCtx.strokeText(item.text, item.x, item.y);
-                    mCtx.fillStyle = item.color; mCtx.fillText(item.text, item.x, item.y);
-                    mCtx.globalAlpha = 1;
-                }
-            });
-        };
+        
+        await new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => {
+                mCtx.clearRect(0,0,640,480);
+                mCtx.drawImage(img, 0, 0);
+                items.forEach(item => {
+                    if(curTime >= item.start && curTime <= item.end) {
+                        let a = item.alpha;
+                        if(item.fade && (item.end - curTime < 0.5)) a *= ((item.end - curTime) / 0.5);
+                        mCtx.globalAlpha = Math.max(0, a);
+                        mCtx.font = `bold ${item.size}px sans-serif`;
+                        mCtx.textAlign = "center";
+                        mCtx.lineWidth = item.size / 6;
+                        mCtx.strokeStyle = item.stroke;
+                        mCtx.strokeText(item.text, item.x, item.y);
+                        mCtx.fillStyle = item.color;
+                        mCtx.fillText(item.text, item.x, item.y);
+                        mCtx.globalAlpha = 1;
+                    }
+                });
+                resolve();
+            };
+            img.src = frames[idx];
+        });
     }
 
     function seek(e) {
         const rect = document.getElementById('tl-scroll').getBoundingClientRect();
         curTime = (e.clientX - rect.left + document.getElementById('tl-scroll').scrollLeft) / pxPerSec;
+        if(curTime < 0) curTime = 0;
         document.getElementById('playhead').style.left = (curTime * pxPerSec) + 'px';
         draw();
     }
 
     function togglePlay() { isPlaying = !isPlaying; if(isPlaying) loop(); }
-    function loop() {
+    
+    async function loop() {
         if(!isPlaying) return;
         curTime += 1/fps;
-        if(curTime > frames.length/fps) curTime = 0;
+        if(curTime >= frames.length/fps) { curTime = 0; isPlaying = false; }
         document.getElementById('playhead').style.left = (curTime * pxPerSec) + 'px';
-        draw(); setTimeout(loop, 1000/fps);
+        await draw();
+        if(isPlaying) requestAnimationFrame(loop);
     }
 
     function deleteItem() { items = items.filter(i => i.id !== selectedId); document.getElementById('editor-ui').style.display = 'none'; renderTimeline(); draw(); }
+    
     window.onkeydown = e => { if(e.key === 'Enter' && mode === 'shoot') takePhoto(); };
 
     async function exportVideo() {
+        if(frames.length === 0) return;
+        isPlaying = false;
         const stream = mainCanvas.captureStream(fps);
-        const rec = new MediaRecorder(stream, {mimeType:'video/webm'});
+        const rec = new MediaRecorder(stream, {mimeType:'video/webm;codecs=vp8'});
         const chunks = [];
         rec.ondataavailable = e => chunks.push(e.data);
         rec.onstop = () => {
+            const blob = new Blob(chunks, {type:'video/webm'});
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob(chunks, {type:'video/webm'}));
-            a.download = 'stopmotion-pro.webm'; a.click();
+            a.href = URL.createObjectURL(blob);
+            a.download = 'stopmotion_movie.webm'; a.click();
         };
-        rec.start(); isPlaying = false;
-        for(let i=0; i<frames.length; i++) { curTime = i/fps; draw(); await new Promise(r => setTimeout(r, 100)); }
+
+        rec.start();
+        for(let i=0; i < frames.length; i++) {
+            curTime = i / fps;
+            document.getElementById('playhead').style.left = (curTime * pxPerSec) + 'px';
+            await draw();
+            await new Promise(r => setTimeout(r, 50)); // キャプチャのための僅かな待ち
+        }
         rec.stop();
+        alert("書き出しが完了しました。");
     }
 </script>
 </body>
