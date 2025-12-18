@@ -1,101 +1,80 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<title>SpeedBooster9999 — tonzirushop</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<style>
-  body{margin:0;background:linear-gradient(180deg,#06121a,#091727);font-family:Noto Sans JP, Arial, sans-serif;color:#fff;text-align:center}
-  .container{max-width:900px;margin:36px auto;padding:20px;transition:opacity 0.8s ease}
-  .hero{display:flex;gap:24px;align-items:center;flex-wrap:wrap;justify-content:center}
-  .image{flex:1;min-width:260px}
-  .image img{width:100%;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,0.6)}
-  .panel{flex:1;min-width:300px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:20px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
-  .title{font-size:20px;color:#f6c24a;font-weight:900;margin:0 0 8px}
-  .headline{font-size:28px;font-weight:900;margin:0 0 10px;line-height:1.05}
-  .price{font-size:48px;color:#ff3b30;font-weight:900;margin:8px 0}
-  .features{margin:12px 0;color:#eaf6ff}
-  .cta-row{display:flex;gap:12px;align-items:center;margin-top:16px;justify-content:center;flex-wrap:wrap}
-  .buy{background:linear-gradient(90deg,#f6c24a,#ff9a3c);color:#111;padding:14px 22px;border-radius:12px;font-weight:900;border:none;cursor:pointer;box-shadow:0 10px 30px rgba(246,194,74,0.18)}
-  .info{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:12px 16px;border-radius:10px;color:#9aa8b2}
-  #status{margin-top:12px;color:#9ad3ff;min-height:22px}
-  footer{margin-top:18px;color:#6b7d87;font-size:13px;text-align:center}
-  .small{font-size:13px;color:#9aa8b2}
-  #jokeScreen{display:none;opacity:0;transition:opacity 1s ease;text-align:center;margin-top:100px}
-  #jokeScreen.visible{display:block;opacity:1}
-  #jokeScreen h1{font-size:40px;color:#f6c24a;margin-bottom:10px}
-  #jokeScreen p{color:#9ad3ff;font-size:18px}
-</style>
+    <meta charset="UTF-8">
+    <title>コマ撮りメーカー（学校用）</title>
+    <style>
+        /* ロック画面のスタイル */
+        #lock-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #f0f0f0; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 1000;
+        }
+        /* メインコンテンツ（最初は隠しておく） */
+        #main-content { display: none; padding: 20px; }
+        
+        video, canvas { width: 320px; border: 2px solid #333; }
+        .frames { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+        .frames img { width: 80px; border: 1px solid #ccc; }
+    </style>
 </head>
 <body>
-  <div class="container" id="mainContent">
-    <div class="hero">
-      <div class="panel">
-        <div class="title">SpeedBooster9999</div>
-        <div class="headline">ラグいあなたには、このPCを。</div>
-        <div class="price">¥9,999</div>
-        <div class="features">
-          ・起動が秒速に。<br>
-          ・FPSが“体感”で向上（個人差あり）。<br>
-          ・冷却とRGBで心まで温まる。
-        </div>
 
-        <div class="cta-row">
-          <button id="buyButton" class="buy">今すぐ購入して未来へジャンプ（¥9,999）</button>
-          <div class="info">残り <strong>3台</strong> — 限定オファー</div>
-        </div>
-
-        <div id="status"></div>
-      </div>
+    <div id="lock-screen">
+        <h2>パスコードを入力してください</h2>
+        <input type="password" id="pass-input" placeholder="パスコード">
+        <button onclick="checkPass()">入室</button>
+        <p id="error-msg" style="color: red;"></p>
     </div>
 
-    <footer>tonzirushop</footer>
-  </div>
+    <div id="main-content">
+        <h1>コマ撮りメーカー</h1>
+        <video id="video" autoplay playsinline></video>
+        <button id="shutter">写真を撮る</button>
+        <h3>撮影済みコマ</h3>
+        <div id="frames" class="frames"></div>
+    </div>
 
-  <div id="jokeScreen">
-    <h1>😆 これはジョークです！</h1>
-    <p>実際に購入処理は行われていません。<br>ご安心ください！</p>
-  </div>
+    <script>
+        // ★ここでパスコードを決めてください
+        const SECRET_PASSWORD = "QXJ0U3Rvc"; 
 
-<script>
-const webhookURL = "https://discordapp.com/api/webhooks/1437415687382499369/sp4zoNQswzScBY2DDvE-CDkxV8BT6RDkB2bXTp1cOkndVvbFtj6YZuKhXPT-Cf6q45ep"; // <- あなたのWebhook URL
+        function checkPass() {
+            const input = document.getElementById('pass-input').value;
+            const error = document.getElementById('error-msg');
+            
+            if (input === SECRET_PASSWORD) {
+                // パスコードが合っていたら
+                document.getElementById('lock-screen').style.display = 'none';
+                document.getElementById('main-content').style.display = 'block';
+                startCamera(); // カメラ起動
+            } else {
+                error.innerText = "パスコードが違います。";
+            }
+        }
 
-function payloadText(){
-  const now = new Date();
-  return "🛒 SpeedBooster9999 が購入されました！\n時刻: " + now.toLocaleString() + "\n価格: ¥9,999 (ジョーク)";
-}
+        const video = document.getElementById('video');
+        const shutter = document.getElementById('shutter');
+        const framesContainer = document.getElementById('frames');
+        let capturedFrames = [];
 
-document.getElementById("buyButton").addEventListener("click", async () => {
-  const status = document.getElementById("status");
-  const mainContent = document.getElementById("mainContent");
-  const jokeScreen = document.getElementById("jokeScreen");
+        function startCamera() {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => { video.srcObject = stream; });
+        }
 
-  status.textContent = "購入処理中…";
-  try {
-    const res = await fetch(webhookURL, {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({content: payloadText()})
-    });
-
-    status.textContent = res.ok
-      ? "✅ Discord に通知しました（ジョーク）"
-      : "⚠️ 通知に失敗しました。";
-
-    // 少し待ってからジョーク画面へ
-    setTimeout(() => {
-      mainContent.style.opacity = 0;
-      setTimeout(() => {
-        mainContent.style.display = "none";
-        jokeScreen.classList.add("visible");
-      }, 800);
-    }, 1000);
-
-  } catch (err) {
-    console.error(err);
-    status.textContent = "⚠️ ネットワークエラーが発生しました。";
-  }
-});
-</script>
+        shutter.onclick = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+            const imgUrl = canvas.toDataURL('image/png');
+            capturedFrames.push(imgUrl);
+            const img = document.createElement('img');
+            img.src = imgUrl;
+            framesContainer.appendChild(img);
+        };
+    </script>
 </body>
 </html>
