@@ -2,11 +2,11 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>STOPMOTION CAMERA PRO + DOWNLOAD</title>
+    <title>STOPMOTION STUDIO - FULL PRO</title>
     <style>
         :root {
             --bg: #121212; --panel: #1e1e1e; --accent: #ff4757;
-            --blue: #00a8ff; --green: #2ed573; --text: #eee;
+            --blue: #00a8ff; --green: #2ed573; --text: #eee; --purple: #a55eea;
         }
         body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
         
@@ -18,26 +18,27 @@
         header { background: #000; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
         .status { font-weight: bold; color: var(--blue); }
 
-        .container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; }
-        .monitor-wrapper { position: relative; width: 640px; height: 480px; background: #000; border: 3px solid #333; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; position: relative; }
+        .monitor-wrapper { position: relative; width: 640px; height: 480px; background: #000; border: 3px solid #333; border-radius: 8px; }
         video, canvas { position: absolute; top: 0; left: 0; width: 640px; height: 480px; }
         #onion-layer { opacity: 0.4; pointer-events: none; }
 
-        .controls { display: flex; gap: 15px; margin-top: 15px; align-items: center; flex-wrap: wrap; justify-content: center; }
-        .btn { padding: 12px 24px; font-size: 15px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; color: white; }
+        .controls { display: flex; gap: 10px; margin-top: 15px; align-items: center; flex-wrap: wrap; justify-content: center; }
+        .btn { padding: 10px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; color: white; display: flex; align-items: center; gap: 5px; }
         .btn:hover { opacity: 0.8; transform: translateY(-1px); }
-        .btn-shoot { background: var(--accent); font-size: 18px; padding: 15px 40px; }
+        .btn-shoot { background: var(--accent); font-size: 18px; padding: 15px 30px; }
         .btn-play { background: var(--blue); }
-        .btn-download { background: var(--green); } /* 動画ダウンロード */
+        .btn-download { background: var(--green); }
+        .btn-save { background: var(--purple); } /* セーブデータ作成 */
+        .btn-load { background: #4b6584; } /* セーブデータ読込 */
         .btn-undo { background: #57606f; }
-        .btn-reset { background: #333; border: 1px solid #ff4757; color: #ff4757; font-size: 12px; }
+        .btn-reset { background: #333; border: 1px solid var(--accent); color: var(--accent); }
 
         .gallery { height: 110px; background: #0a0a0a; display: flex; gap: 6px; padding: 8px; overflow-x: auto; border-top: 1px solid #222; }
         .gallery-item { height: 90px; border: 1px solid #444; position: relative; }
         .gallery-item span { position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.7); font-size: 10px; padding: 2px 4px; }
         
-        /* 書き出し中のオーバーレイ */
-        #export-msg { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; }
+        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; }
     </style>
 </head>
 <body>
@@ -47,17 +48,21 @@
         <h2>🔑 PASSCODE</h2>
         <input type="password" id="pass-input" placeholder="****">
         <br>
-        <button class="btn btn-play" style="width:100%" onclick="checkPass()">ENTER</button>
+        <button class="btn btn-play" style="width:100%" onclick="checkPass()">ENTER STUDIO</button>
     </div>
 </div>
 
-<div id="export-msg">
-    <h2>🎬 動画を作成中...</h2>
-    <p>そのまま少しお待ちください。</p>
+<div id="overlay">
+    <h2 id="overlay-msg">🎬 処理中...</h2>
 </div>
 
 <header>
-    <div class="status">🎬 STOPMOTION STUDIO</div>
+    <div class="status">🎬 STOPMOTION STUDIO PRO</div>
+    <div style="display: flex; gap: 15px;">
+        <button class="btn btn-save" onclick="saveProject()">💾 セーブ(保存)</button>
+        <button class="btn btn-load" onclick="document.getElementById('file-input').click()">📂 ロード(再開)</button>
+        <input type="file" id="file-input" style="display:none;" accept=".json" onchange="loadProject(event)">
+    </div>
     <div>コマ数: <span id="count" style="font-size: 20px;">0</span></div>
 </header>
 
@@ -71,12 +76,10 @@
     <div class="controls">
         <button class="btn btn-shoot" onclick="takePhoto()">📸 撮影 (Enter)</button>
         <button class="btn btn-play" id="play-btn" onclick="togglePlay()">⏯️ 再生</button>
-        <button class="btn btn-download" onclick="downloadVideo()">💾 動画を保存</button>
+        <button class="btn btn-download" onclick="downloadVideo()">📹 動画書き出し</button>
         <button class="btn btn-undo" onclick="deleteLast()">↩️ 1つ戻る</button>
         <button class="btn btn-reset" onclick="resetAll()">🔄 すべてをリセット</button>
-        <div style="font-size: 12px; color: #888;">
-            速度: <input type="number" id="fps" value="10" style="width:40px; background:#000; color:#fff; border:1px solid #444;"> fps
-        </div>
+        <div style="font-size: 12px; color: #888;">速度: <input type="number" id="fps" value="10" style="width:40px; background:#000; color:#fff; border:1px solid #444;"> fps</div>
     </div>
 </div>
 
@@ -102,12 +105,10 @@
     }
 
     async function startCamera() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({video: {width: 640, height: 480}});
-            video.srcObject = stream;
-            onionCanvas.width = playCanvas.width = 640;
-            onionCanvas.height = playCanvas.height = 480;
-        } catch (e) { alert("カメラが見つかりません"); }
+        const stream = await navigator.mediaDevices.getUserMedia({video: {width: 640, height: 480}});
+        video.srcObject = stream;
+        onionCanvas.width = playCanvas.width = 640;
+        onionCanvas.height = playCanvas.height = 480;
     }
 
     function takePhoto() {
@@ -121,9 +122,10 @@
         updateOnionSkin(data);
     }
 
+    // 1つ戻る
     function deleteLast() {
         if(frames.length === 0) return;
-        if(confirm("直前の1コマを消して、撮り直しますか？")) {
+        if(confirm("直前の1コマを削除しますか？")) {
             frames.pop();
             updateUI();
             if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
@@ -131,13 +133,58 @@
         }
     }
 
+    // すべてをリセット
     function resetAll() {
         if(frames.length === 0) return;
-        if(confirm("最初からやり直しますか？")) {
+        if(confirm("すべてをリセットして最初からやり直しますか？")) {
             frames = [];
             oCtx.clearRect(0, 0, 640, 480);
             updateUI();
         }
+    }
+
+    // --- 【新機能】セーブ：データをJSONで保存 ---
+    function saveProject() {
+        if(frames.length === 0) { alert("保存するデータがありません"); return; }
+        const data = {
+            fps: document.getElementById('fps').value,
+            frames: frames,
+            timestamp: new Date().toISOString()
+        };
+        const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `stopmotion_save_${new Date().getTime()}.json`;
+        a.click();
+    }
+
+    // --- 【新機能】ロード：JSONを読み込んで復元 ---
+    function loadProject(event) {
+        const file = event.target.files[0];
+        if(!file) return;
+
+        const reader = new FileReader();
+        document.getElementById('overlay-msg').innerText = "📂 プロジェクトを読み込み中...";
+        document.getElementById('overlay').style.display = 'flex';
+
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                frames = data.frames;
+                document.getElementById('fps').value = data.fps || 10;
+                
+                updateUI();
+                if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
+                
+                alert("ロードが完了しました！");
+            } catch (err) {
+                alert("セーブファイルの読み込みに失敗しました。");
+            }
+            document.getElementById('overlay').style.display = 'none';
+            event.target.value = ""; // リセット
+        };
+        reader.readAsText(file);
     }
 
     function updateOnionSkin(src) {
@@ -189,45 +236,33 @@
         img.src = frames[playIdx];
     }
 
-    // --- 【新機能】動画ダウンロード ---
     async function downloadVideo() {
-        if(frames.length === 0) { alert("写真がありません"); return; }
-        
-        isPlaying = false; // 再生中なら止める
-        document.getElementById('export-msg').style.display = 'flex';
+        if(frames.length === 0) return;
+        isPlaying = false;
+        document.getElementById('overlay-msg').innerText = "📹 動画ファイルを書き出し中...";
+        document.getElementById('overlay').style.display = 'flex';
         
         const currentFps = document.getElementById('fps').value;
         const stream = playCanvas.captureStream(currentFps);
         const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
         const chunks = [];
-
         recorder.ondataavailable = (e) => chunks.push(e.data);
         recorder.onstop = () => {
             const blob = new Blob(chunks, { type: 'video/webm' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
-            a.download = 'stopmotion_movie.webm';
-            a.click();
-            document.getElementById('export-msg').style.display = 'none';
+            a.href = url; a.download = 'stopmotion_movie.webm'; a.click();
+            document.getElementById('overlay').style.display = 'none';
         };
-
         recorder.start();
         playCanvas.style.display = "block";
-
-        // 全フレームを順番にCanvasへ描画して録画する
         for(let i = 0; i < frames.length; i++) {
             await new Promise(resolve => {
                 const img = new Image();
-                img.onload = () => {
-                    pCtx.clearRect(0, 0, 640, 480);
-                    pCtx.drawImage(img, 0, 0);
-                    setTimeout(resolve, 1000 / currentFps); // FPSに合わせて待機
-                };
+                img.onload = () => { pCtx.clearRect(0,0,640,480); pCtx.drawImage(img, 0, 0); setTimeout(resolve, 1000 / currentFps); };
                 img.src = frames[i];
             });
         }
-
         recorder.stop();
         playCanvas.style.display = "none";
     }
