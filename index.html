@@ -2,31 +2,32 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>コマ撮りメーカー（学校用）</title>
+    <title>コマ撮りメーカー（編集機能付き）</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #fafafa; margin: 0; }
+        body { font-family: sans-serif; text-align: center; background: #fafafa; margin: 0; padding-bottom: 50px; }
         #lock-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #f0f0f0; display: flex; flex-direction: column;
             align-items: center; justify-content: center; z-index: 1000;
         }
-        #main-content { display: none; padding: 20px; }
+        #main-content { display: none; padding: 10px; }
         
-        .viewer-container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
-        video, canvas { width: 400px; background: #000; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .layout { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+        video, #edit-canvas, #canvas-preview { width: 400px; background: #000; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
         
-        .controls { margin: 20px 0; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
-        button { padding: 10px 20px; font-size: 16px; cursor: pointer; border-radius: 5px; border: none; transition: 0.2s; }
+        .editor-box { border: 2px solid #1e90ff; padding: 10px; border-radius: 10px; background: #eef7ff; }
+        .controls { margin: 15px 0; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; align-items: center; }
         
-        #shutter { background: #ff4757; color: white; font-weight: bold; }
-        #shutter:hover { background: #ff6b81; }
+        button { padding: 8px 16px; font-size: 14px; cursor: pointer; border-radius: 5px; border: none; font-weight: bold; }
+        #shutter { background: #ff4757; color: white; }
+        .btn-tool { background: #747d8c; color: white; }
+        #save-frame { background: #1e90ff; color: white; font-size: 18px; }
         #play-btn { background: #2ed573; color: white; }
-        #download-btn { background: #1e90ff; color: white; }
-        #delete-btn { background: #ffa502; color: white; }
+        #download-btn { background: #2f3542; color: white; }
 
-        .frames { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 20px; border-top: 1px solid #ddd; padding-top: 10px; overflow-y: auto; max-height: 200px; }
-        .frames img { width: 100px; border: 2px solid transparent; }
-        .current-frame { border: 2px solid #ff4757 !important; }
+        .frames { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 20px; border-top: 2px solid #ddd; padding: 10px; overflow-y: auto; max-height: 200px; background: white; }
+        .frames img { width: 80px; border: 1px solid #ccc; }
+        .tool-bar { background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ccc; }
     </style>
 </head>
 <body>
@@ -39,44 +40,60 @@
     </div>
 
     <div id="main-content">
-        <h1>🎬 コマ撮りメーカー</h1>
+        <h1>🎬 コマ撮りメーカー + らくがき</h1>
         
-        <div class="viewer-container">
+        <div class="layout">
             <div>
-                <p>カメラ（撮影）</p>
+                <p>1. カメラ</p>
                 <video id="video" autoplay playsinline></video>
+                <div class="controls">
+                    <button id="shutter">📸 撮影して編集へ</button>
+                </div>
             </div>
+
+            <div class="editor-box">
+                <p>2. 編集（ペン・文字・スタンプ）</p>
+                <div class="tool-bar">
+                    色:<input type="color" id="color-picker" value="#ff0000">
+                    太さ:<input type="range" id="pen-size" min="1" max="20" value="5" style="width:60px">
+                    <button class="btn-tool" onclick="setTool('pen')">✏️ペン</button>
+                    <button class="btn-tool" onclick="addText()">🔤文字</button>
+                    <button class="btn-tool" onclick="addStamp('⭐')">⭐</button>
+                    <button class="btn-tool" onclick="addStamp('🔥')">🔥</button>
+                    <button class="btn-tool" onclick="clearEdit()">❌消去</button>
+                </div>
+                <canvas id="edit-canvas"></canvas>
+                <div class="controls">
+                    <button id="save-frame">✅ このコマを保存</button>
+                </div>
+            </div>
+
             <div>
-                <p>プレビュー（再生）</p>
+                <p>3. プレビュー</p>
                 <canvas id="canvas-preview"></canvas>
+                <div class="controls">
+                    <button id="play-btn">▶️ 再生</button>
+                    <button id="download-btn">💾 動画保存</button>
+                    速度:<input type="number" id="fps" value="10" min="1" max="30" style="width:40px">
+                </div>
             </div>
         </div>
 
-        <div class="controls">
-            <button id="shutter">📸 写真を撮る</button>
-            <button id="delete-btn">↩️ 1つ消す</button>
-            <button id="play-btn">▶️ 再生する</button>
-            <button id="download-btn">💾 動画を保存</button>
-            <span>速度: <input type="number" id="fps" value="10" min="1" max="30" style="width:40px"> fps</span>
-        </div>
-
-        <h3>撮影したコマ（合計: <span id="count">0</span>枚）</h3>
+        <h3>保存されたコマ（合計: <span id="count">0</span>枚）</h3>
+        <button id="delete-btn">↩️ 最後の1枚を消す</button>
         <div id="frames" class="frames"></div>
     </div>
 
     <script>
         const SECRET_PASSWORD = "QXJ0U3Rvc"; 
-        const video = document.getElementById('video');
-        const shutter = document.getElementById('shutter');
-        const playBtn = document.getElementById('play-btn');
-        const downloadBtn = document.getElementById('download-btn');
-        const deleteBtn = document.getElementById('delete-btn');
-        const framesContainer = document.getElementById('frames');
-        const canvasPreview = document.getElementById('canvas-preview');
-        const ctx = canvasPreview.getContext('2d');
-        const countDisplay = document.getElementById('count');
-
         let capturedFrames = [];
+        let isDrawing = false;
+        
+        const video = document.getElementById('video');
+        const editCanvas = document.getElementById('edit-canvas');
+        const eCtx = editCanvas.getContext('2d');
+        const previewCanvas = document.getElementById('canvas-preview');
+        const pCtx = previewCanvas.getContext('2d');
 
         function checkPass() {
             if (document.getElementById('pass-input').value === SECRET_PASSWORD) {
@@ -92,82 +109,110 @@
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             video.srcObject = stream;
             video.onloadedmetadata = () => {
-                canvasPreview.width = video.videoWidth;
-                canvasPreview.height = video.videoHeight;
+                editCanvas.width = previewCanvas.width = video.videoWidth;
+                editCanvas.height = previewCanvas.height = video.videoHeight;
             };
         }
 
-        // 撮影
-        shutter.onclick = () => {
-            const c = document.createElement('canvas');
-            c.width = video.videoWidth;
-            c.height = video.videoHeight;
-            c.getContext('2d').drawImage(video, 0, 0);
-            const imgUrl = c.toDataURL('image/png');
-            capturedFrames.push(imgUrl);
-            updateFrames();
+        // 1. 撮影
+        document.getElementById('shutter').onclick = () => {
+            eCtx.drawImage(video, 0, 0, editCanvas.width, editCanvas.height);
         };
 
-        // 1つ削除
-        deleteBtn.onclick = () => {
+        // 2. お絵描き
+        editCanvas.onmousedown = (e) => { isDrawing = true; eCtx.beginPath(); };
+        editCanvas.onmousemove = (e) => {
+            if (!isDrawing) return;
+            const rect = editCanvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (editCanvas.width / rect.width);
+            const y = (e.clientY - rect.top) * (editCanvas.height / rect.height);
+            eCtx.lineWidth = document.getElementById('pen-size').value;
+            eCtx.lineCap = 'round';
+            eCtx.strokeStyle = document.getElementById('color-picker').value;
+            eCtx.lineTo(x, y);
+            eCtx.stroke();
+        };
+        window.onmouseup = () => isDrawing = false;
+
+        // 文字追加
+        function addText() {
+            const text = prompt("入れたい文字を入力してください");
+            if (text) {
+                eCtx.font = "bold 50px sans-serif";
+                eCtx.fillStyle = document.getElementById('color-picker').value;
+                eCtx.fillText(text, 50, 100);
+            }
+        }
+
+        // スタンプ追加
+        function addStamp(emoji) {
+            eCtx.font = "80px serif";
+            eCtx.fillText(emoji, editCanvas.width/2 - 40, editCanvas.height/2 + 40);
+        }
+
+        // 編集クリア
+        function clearEdit() {
+            eCtx.drawImage(video, 0, 0, editCanvas.width, editCanvas.height);
+        }
+
+        // 3. 保存
+        document.getElementById('save-frame').onclick = () => {
+            capturedFrames.push(editCanvas.toDataURL('image/png'));
+            updateFrames();
+            // 保存したら次の撮影のために編集画面をクリア
+            eCtx.clearRect(0,0,editCanvas.width, editCanvas.height);
+        };
+
+        function updateFrames() {
+            const container = document.getElementById('frames');
+            container.innerHTML = '';
+            capturedFrames.forEach(src => {
+                const img = document.createElement('img');
+                img.src = src;
+                container.appendChild(img);
+            });
+            document.getElementById('count').innerText = capturedFrames.length;
+        }
+
+        document.getElementById('delete-btn').onclick = () => {
             capturedFrames.pop();
             updateFrames();
         };
 
-        function updateFrames() {
-            framesContainer.innerHTML = '';
-            capturedFrames.forEach(src => {
-                const img = document.createElement('img');
-                img.src = src;
-                framesContainer.appendChild(img);
-            });
-            countDisplay.innerText = capturedFrames.length;
-        }
-
-        // 再生
-        playBtn.onclick = () => {
+        // 再生・ダウンロードは前回のロジックを統合
+        document.getElementById('play-btn').onclick = () => {
             if (capturedFrames.length === 0) return;
             let i = 0;
-            const fps = document.getElementById('fps').value;
             const interval = setInterval(() => {
                 const img = new Image();
                 img.src = capturedFrames[i];
-                img.onload = () => ctx.drawImage(img, 0, 0);
+                img.onload = () => pCtx.drawImage(img, 0, 0);
                 i++;
                 if (i >= capturedFrames.length) clearInterval(interval);
-            }, 1000 / fps);
+            }, 1000 / document.getElementById('fps').value);
         };
 
-        // ダウンロード (WebM形式)
-        downloadBtn.onclick = () => {
+        document.getElementById('download-btn').onclick = () => {
             if (capturedFrames.length === 0) return;
-            const fps = document.getElementById('fps').value;
-            const stream = canvasPreview.captureStream(fps);
+            const stream = previewCanvas.captureStream(document.getElementById('fps').value);
             const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
             const chunks = [];
-
             recorder.ondataavailable = e => chunks.push(e.data);
             recorder.onstop = () => {
-                const blob = new Blob(chunks, { type: 'video/webm' });
-                const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = url;
-                a.download = 'koma-movie.webm';
+                a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
+                a.download = 'koma-anime.webm';
                 a.click();
             };
-
             recorder.start();
             let i = 0;
             const interval = setInterval(() => {
                 const img = new Image();
                 img.src = capturedFrames[i];
-                img.onload = () => ctx.drawImage(img, 0, 0);
+                img.onload = () => pCtx.drawImage(img, 0, 0);
                 i++;
-                if (i >= capturedFrames.length) {
-                    clearInterval(interval);
-                    setTimeout(() => recorder.stop(), 500);
-                }
-            }, 1000 / fps);
+                if (i >= capturedFrames.length) { clearInterval(interval); recorder.stop(); }
+            }, 1000 / document.getElementById('fps').value);
         };
     </script>
 </body>
