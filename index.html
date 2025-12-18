@@ -2,247 +2,249 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>コマ撮りメーカー Pro (オニオンスキン＆編集)</title>
+    <title>コマ撮りメーカー Ultra Pro</title>
     <style>
-        :root { --primary: #1e90ff; --accent: #ff4757; --bg: #f5f6fa; }
-        body { font-family: sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        :root { --primary: #00a8ff; --accent: #e84118; --dark: #1e2124; --panel: #2f3640; --track: #353b48; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--dark); color: white; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
         
-        /* ロック画面 */
-        #lock-screen { position: fixed; inset: 0; background: #eee; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        /* Layout */
+        header { background: #111; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; }
+        .main-layout { display: flex; flex: 1; overflow: hidden; }
+        .preview-section { flex: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000; position: relative; }
+        .properties-panel { flex: 1.2; background: var(--panel); padding: 15px; overflow-y: auto; border-left: 2px solid #000; font-size: 13px; }
+        
+        /* Canvas */
+        .canvas-wrapper { position: relative; background: #000; line-height: 0; }
+        canvas, video { max-width: 100%; max-height: 65vh; object-fit: contain; }
 
-        /* ヘッダー */
-        header { background: #2f3542; color: white; padding: 10px; display: flex; justify-content: space-between; align-items: center; }
-        .mode-tab button { background: #57606f; color: white; border: none; padding: 8px 20px; cursor: pointer; border-radius: 4px; margin-left: 5px; }
-        .mode-tab button.active { background: var(--primary); }
+        /* Timeline */
+        .timeline-container { height: 240px; background: #111; border-top: 3px solid #000; display: flex; flex-direction: column; }
+        .timeline-scroll { flex: 1; overflow-x: auto; overflow-y: auto; position: relative; padding: 10px 0; }
+        .timeline-row { height: 35px; background: var(--track); margin: 4px 0; position: relative; min-width: 5000px; border-radius: 2px; }
+        .item-block { position: absolute; height: 25px; top: 5px; background: var(--primary); border: 1px solid #fff; border-radius: 4px; cursor: pointer; display: flex; align-items: center; padding: 0 8px; font-size: 11px; white-space: nowrap; overflow: hidden; }
+        .playhead { position: absolute; top: 0; width: 2px; height: 100%; background: #fbc531; z-index: 100; pointer-events: none; }
 
-        /* メインエリア */
-        #main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; display: none; }
-        .workspace { display: flex; flex: 1; padding: 10px; gap: 10px; overflow: hidden; }
-
-        /* 撮影用カメラエリア */
-        .shoot-area { flex: 2; position: relative; background: #000; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .video-container { position: relative; width: 640px; height: 480px; }
-        video, #onion-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 4px; }
-        #onion-canvas { opacity: 0.5; pointer-events: none; } /* 前の写真を透かす */
-
-        /* 撮影済み写真リスト */
-        .photo-list { flex: 1; background: white; padding: 10px; border-radius: 8px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 5px; align-content: flex-start; }
-        .photo-list img { width: 80px; height: 60px; object-fit: cover; border: 1px solid #ccc; }
-
-        /* 編集・タイムライン (以前の機能を維持) */
-        #edit-section { display: none; flex: 1; flex-direction: column; }
-        .timeline-track { background: #f1f2f6; height: 60px; border-radius: 4px; position: relative; margin: 10px; border: 1px solid #ccc; overflow-x: auto; }
-        .playhead { position: absolute; top: 0; width: 2px; height: 100%; background: red; z-index: 10; }
-
-        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin: 5px; }
-        .btn-red { background: var(--accent); color: white; }
-        .btn-blue { background: var(--primary); color: white; }
+        /* UI Parts */
+        .prop-group { margin-bottom: 15px; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        .prop-group h3 { margin: 0 0 8px 0; font-size: 12px; color: var(--primary); text-transform: uppercase; }
+        .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
+        .btn-capture { background: var(--accent); color: white; }
+        .btn-tool { background: #444; color: white; margin: 2px; }
+        .btn-tool:hover { background: #666; }
+        input, select { background: #111; color: white; border: 1px solid #555; padding: 4px; width: 100%; box-sizing: border-box; }
+        .flex-row { display: flex; gap: 5px; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-<div id="lock-screen">
-    <h2>🔑 パスコードを入力</h2>
-    <input type="password" id="pass-input" style="font-size: 20px; padding: 10px;">
-    <button onclick="checkPass()" class="btn btn-blue">入室</button>
-</div>
-
 <header>
-    <div>📸 コマ撮りメーカー Pro</div>
-    <div class="mode-tab">
-        <button id="btn-shoot-mode" class="active" onclick="switchMode('shoot')">1. 撮影（オニオンスキン）</button>
-        <button id="btn-edit-mode" onclick="switchMode('edit')">2. 編集（YMM4風）</button>
+    <div style="font-weight: bold; color: var(--primary);">🎬 STOPMOTION ULTRA PRO</div>
+    <div style="display:flex; gap:10px;">
+        <button class="btn btn-tool" onclick="setMode('shoot')" id="tab-shoot">📷 撮影</button>
+        <button class="btn btn-tool" onclick="setMode('edit')" id="tab-edit">✂️ 編集</button>
+        <button class="btn btn-capture" onclick="exportVideo()">💾 完成保存</button>
     </div>
-    <button class="btn btn-red" onclick="exportVideo()">🎬 完成保存</button>
 </header>
 
-<div id="main-content">
-    <div id="shoot-section" class="workspace">
-        <div class="shoot-area">
-            <div class="video-container">
-                <video id="video" autoplay playsinline></video>
-                <canvas id="onion-canvas"></canvas> </div>
-            <div style="margin-top:10px;">
-                <button class="btn btn-red" id="shutter" onclick="takePhoto()">📸 撮影 (Enter)</button>
-                <button class="btn btn-blue" onclick="popPhoto()">↩️ 1枚消す</button>
-                <span style="color:white;">枚数: <span id="frame-count">0</span></span>
-            </div>
+<div class="main-layout">
+    <section class="preview-section">
+        <div class="canvas-wrapper">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="onion-layer" style="position:absolute; top:0; left:0; opacity:0.4; pointer-events:none;"></canvas>
+            <canvas id="main-canvas"></canvas>
         </div>
-        <div class="photo-list" id="photo-list">
-            </div>
-    </div>
+        <div style="padding:15px; display:flex; gap:10px; align-items:center;">
+            <button class="btn btn-capture" id="shutter-btn" onclick="takePhoto()">📸 撮影 (Enter)</button>
+            <button class="btn btn-tool" onclick="togglePlay()">⏯️ 再生/停止</button>
+            <div style="font-size:12px;">スピード: <input type="number" id="fps-input" value="10" style="width:40px;" oninput="fps=this.value"> fps</div>
+            <div style="font-size:12px;">Frames: <span id="frame-count">0</span></div>
+        </div>
+    </section>
 
-    <div id="edit-section" class="workspace">
-        <div class="shoot-area">
-            <canvas id="preview-canvas" width="640" height="480"></canvas>
-            <div style="margin-top:10px;">
-                <button class="btn btn-blue" onclick="togglePlay()">⏯️ 再生/停止</button>
-                <button class="btn btn-blue" onclick="addTextItem()">➕ 字幕を追加</button>
+    <aside class="properties-panel">
+        <div id="no-selection">アイテムを追加するか、タイムラインのブロックを選択してください</div>
+        
+        <div id="editor-ui" style="display:none;">
+            <div class="prop-group">
+                <h3>テキスト / スタンプ</h3>
+                <input type="text" id="prop-text" oninput="updateItem()" placeholder="文字を入力">
+                <div class="flex-row">
+                    <button class="btn btn-tool" onclick="addShape('⭐')">⭐</button>
+                    <button class="btn btn-tool" onclick="addShape('💬')">💬</button>
+                    <button class="btn btn-tool" onclick="addShape('❤️')">❤️</button>
+                    <button class="btn btn-tool" onclick="addShape('💥')">💥</button>
+                </div>
             </div>
-        </div>
-        <div class="photo-list" style="flex:0.5; min-width:200px;">
-            <h3>字幕設定</h3>
-            <div id="item-settings" style="display:none;">
-                内容: <input type="text" id="edit-text-val" oninput="updateCurrentItem()"><br><br>
-                色: <input type="color" id="edit-color" oninput="updateCurrentItem()">
-                <button class="btn btn-red" onclick="deleteItem()">🗑️ 消す</button>
+            <div class="prop-group">
+                <h3>スタイル</h3>
+                色: <input type="color" id="prop-color" oninput="updateItem()">
+                縁: <input type="color" id="prop-stroke" oninput="updateItem()" value="#000000">
+                サイズ: <input type="range" id="prop-size" min="10" max="200" oninput="updateItem()">
             </div>
+            <div class="prop-group">
+                <h3>エフェクト</h3>
+                不透明度: <input type="range" id="prop-alpha" min="0" max="100" value="100" oninput="updateItem()">
+                <label><input type="checkbox" id="prop-fade" onchange="updateItem()"> フェードアウト有効</label>
+            </div>
+            <div class="prop-group">
+                <h3>配置 (ドラッグでも移動可)</h3>
+                X: <input type="range" id="prop-x" min="0" max="640" oninput="updateItem()">
+                Y: <input type="range" id="prop-y" min="0" max="480" oninput="updateItem()">
+            </div>
+            <button class="btn btn-capture" style="width:100%" onclick="deleteItem()">🗑️ 削除</button>
         </div>
-    </div>
 
-    <div class="timeline-track" id="track" onclick="seekTimeline(event)">
+        <div style="margin-top:20px;">
+            <button class="btn btn-tool" style="width:100%" onclick="addItem('text')">➕ 新しい字幕を追加</button>
+        </div>
+    </aside>
+</div>
+
+<div class="timeline-container">
+    <div class="timeline-scroll" id="tl-scroll" onclick="seek(event)">
         <div class="playhead" id="playhead"></div>
+        <div class="timeline-row" id="track-1"></div>
+        <div class="timeline-row" id="track-2"></div>
     </div>
 </div>
 
 <script>
-    const SECRET_PASSWORD = "QXJ0U3Rvc";
-    let frames = [];
-    let textItems = [];
-    let currentTime = 0;
-    let isPlaying = false;
-    let fps = 10;
+    let frames = [], items = [], mode = 'shoot', curTime = 0, isPlaying = false, selectedId = null, fps = 10;
+    const pxPerSec = 80;
+    const video = document.getElementById('video'), mainCanvas = document.getElementById('main-canvas'), mCtx = mainCanvas.getContext('2d'), onionCanvas = document.getElementById('onion-layer'), oCtx = onionCanvas.getContext('2d');
 
-    const video = document.getElementById('video');
-    const onionCanvas = document.getElementById('onion-canvas');
-    const oCtx = onionCanvas.getContext('2d');
-    const previewCanvas = document.getElementById('preview-canvas');
-    const pCtx = previewCanvas.getContext('2d');
-
-    function checkPass() {
-        if (document.getElementById('pass-input').value === SECRET_PASSWORD) {
-            document.getElementById('lock-screen').style.display = 'none';
-            document.getElementById('main-content').style.display = 'flex';
-            startCamera();
-        }
-    }
-
-    async function startCamera() {
-        const s = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+    navigator.mediaDevices.getUserMedia({video: {width:640, height:480}}).then(s => {
         video.srcObject = s;
-        video.onloadedmetadata = () => {
-            onionCanvas.width = previewCanvas.width = video.videoWidth;
-            onionCanvas.height = previewCanvas.height = video.videoHeight;
-        };
-    }
-
-    // 撮影機能
-    function takePhoto() {
-        const c = document.createElement('canvas');
-        c.width = video.videoWidth; c.height = video.videoHeight;
-        c.getContext('2d').drawImage(video, 0, 0);
-        const data = c.toDataURL('image/png');
-        frames.push(data);
-        
-        // オニオンスキンを更新（今の写真を次のガイドにする）
-        const img = new Image();
-        img.src = data;
-        img.onload = () => {
-            oCtx.clearRect(0,0,onionCanvas.width, onionCanvas.height);
-            oCtx.globalAlpha = 0.4; // 透明度
-            oCtx.drawImage(img, 0, 0);
-        };
-
-        updatePhotoList();
-    }
-
-    function popPhoto() {
-        frames.pop();
-        updatePhotoList();
-        // オニオンスキンを一つ前に戻す
-        oCtx.clearRect(0,0,onionCanvas.width, onionCanvas.height);
-        if(frames.length > 0) {
-            const img = new Image();
-            img.src = frames[frames.length-1];
-            img.onload = () => oCtx.drawImage(img, 0, 0);
-        }
-    }
-
-    function updatePhotoList() {
-        const list = document.getElementById('photo-list');
-        list.innerHTML = '';
-        frames.forEach(src => {
-            const img = document.createElement('img');
-            img.src = src;
-            list.appendChild(img);
-        });
-        document.getElementById('frame-count').innerText = frames.length;
-    }
-
-    // モード切り替え
-    function switchMode(mode) {
-        document.getElementById('shoot-section').style.display = (mode === 'shoot') ? 'flex' : 'none';
-        document.getElementById('edit-section').style.display = (mode === 'edit') ? 'flex' : 'none';
-        document.getElementById('btn-shoot-mode').className = (mode === 'shoot') ? 'active' : '';
-        document.getElementById('btn-edit-mode').className = (mode === 'edit') ? 'active' : '';
-        if(mode === 'edit') renderPreview();
-    }
-
-    // ショートカット: Enterで撮影
-    window.addEventListener('keydown', e => {
-        if(e.key === 'Enter' && document.getElementById('shoot-section').style.display !== 'none') {
-            takePhoto();
-        }
+        video.onloadedmetadata = () => { mainCanvas.width = onionCanvas.width = video.videoWidth; mainCanvas.height = onionCanvas.height = video.videoHeight; };
     });
 
-    // --- 編集・再生・書き出しロジック (簡易化して維持) ---
-    function addTextItem() {
-        textItems.push({ id: Date.now(), text: "テロップ", start: currentTime, end: currentTime+2, color: "#ffffff" });
-        switchMode('edit');
+    function setMode(m) {
+        mode = m;
+        document.getElementById('tab-shoot').classList.toggle('active', m==='shoot');
+        document.getElementById('tab-edit').classList.toggle('active', m==='edit');
+        video.style.display = m==='shoot' ? 'block' : 'none';
+        onionCanvas.style.display = m==='shoot' ? 'block' : 'none';
+        if(m==='edit') draw();
     }
 
-    function renderPreview() {
+    function takePhoto() {
+        const c = document.createElement('canvas');
+        c.width = 640; c.height = 480;
+        c.getContext('2d').drawImage(video, 0, 0);
+        frames.push(c.toDataURL('image/png'));
+        document.getElementById('frame-count').innerText = frames.length;
+        const img = new Image(); img.src = frames[frames.length-1];
+        img.onload = () => { oCtx.clearRect(0,0,640,480); oCtx.drawImage(img, 0, 0); };
+    }
+
+    function addItem(type) {
+        const id = Date.now();
+        items.push({ id, text: "テキスト", start: curTime, end: curTime+2, x: 320, y: 400, color: "#ffffff", stroke: "#000000", size: 40, alpha: 1, fade: false, track: 1 });
+        renderTimeline(); selectItem(id); setMode('edit');
+    }
+
+    function addShape(emoji) {
+        if(!selectedId) addItem('text');
+        const item = items.find(i => i.id === selectedId);
+        item.text = emoji; item.size = 80; updateItem();
+    }
+
+    function renderTimeline() {
+        document.getElementById('track-1').innerHTML = '';
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'item-block';
+            div.innerText = item.text;
+            div.style.left = (item.start * pxPerSec) + 'px';
+            div.style.width = ((item.end - item.start) * pxPerSec) + 'px';
+            div.onclick = (e) => { e.stopPropagation(); selectItem(item.id); };
+            document.getElementById('track-1').appendChild(div);
+        });
+    }
+
+    function selectItem(id) {
+        selectedId = id; const item = items.find(i => i.id === id);
+        document.getElementById('no-selection').style.display = 'none';
+        document.getElementById('editor-ui').style.display = 'block';
+        document.getElementById('prop-text').value = item.text;
+        document.getElementById('prop-color').value = item.color;
+        document.getElementById('prop-size').value = item.size;
+        document.getElementById('prop-x').value = item.x;
+        document.getElementById('prop-y').value = item.y;
+        document.getElementById('prop-alpha').value = item.alpha * 100;
+        document.getElementById('prop-fade').checked = item.fade;
+    }
+
+    function updateItem() {
+        const item = items.find(i => i.id === selectedId); if(!item) return;
+        item.text = document.getElementById('prop-text').value;
+        item.color = document.getElementById('prop-color').value;
+        item.stroke = document.getElementById('prop-stroke').value;
+        item.size = parseInt(document.getElementById('prop-size').value);
+        item.x = parseInt(document.getElementById('prop-x').value);
+        item.y = parseInt(document.getElementById('prop-y').value);
+        item.alpha = document.getElementById('prop-alpha').value / 100;
+        item.fade = document.getElementById('prop-fade').checked;
+        renderTimeline(); draw();
+    }
+
+    function draw() {
         if(frames.length === 0) return;
-        const idx = Math.floor(currentTime * fps);
-        const img = new Image();
-        img.src = frames[Math.min(idx, frames.length - 1)];
+        const idx = Math.min(Math.floor(curTime * fps), frames.length - 1);
+        const img = new Image(); img.src = frames[idx];
         img.onload = () => {
-            pCtx.drawImage(img, 0, 0);
-            textItems.forEach(item => {
-                if(currentTime >= item.start && currentTime <= item.end) {
-                    pCtx.fillStyle = item.color;
-                    pCtx.font = "40px sans-serif";
-                    pCtx.fillText(item.text, 50, 400);
+            mCtx.clearRect(0,0,640,480); mCtx.drawImage(img, 0, 0);
+            items.forEach(item => {
+                if(curTime >= item.start && curTime <= item.end) {
+                    let currentAlpha = item.alpha;
+                    if(item.fade) {
+                        const remaining = item.end - curTime;
+                        if(remaining < 0.5) currentAlpha *= (remaining / 0.5);
+                    }
+                    mCtx.globalAlpha = currentAlpha;
+                    mCtx.font = `bold ${item.size}px sans-serif`;
+                    mCtx.textAlign = "center"; mCtx.lineJoin = "round";
+                    mCtx.lineWidth = item.size / 6; mCtx.strokeStyle = item.stroke;
+                    mCtx.strokeText(item.text, item.x, item.y);
+                    mCtx.fillStyle = item.color; mCtx.fillText(item.text, item.x, item.y);
+                    mCtx.globalAlpha = 1;
                 }
             });
         };
     }
-    
-    function togglePlay() { isPlaying = !isPlaying; if(isPlaying) play(); }
-    function play() {
-        if(!isPlaying) return;
-        currentTime += 1/fps;
-        if(currentTime > frames.length/fps) currentTime = 0;
-        document.getElementById('playhead').style.left = (currentTime * 50) + 'px';
-        renderPreview();
-        setTimeout(play, 1000/fps);
+
+    function seek(e) {
+        const rect = document.getElementById('tl-scroll').getBoundingClientRect();
+        curTime = (e.clientX - rect.left + document.getElementById('tl-scroll').scrollLeft) / pxPerSec;
+        document.getElementById('playhead').style.left = (curTime * pxPerSec) + 'px';
+        draw();
     }
 
-    function seekTimeline(e) {
-        const rect = document.getElementById('track').getBoundingClientRect();
-        currentTime = (e.clientX - rect.left) / 50;
-        document.getElementById('playhead').style.left = (e.clientX - rect.left) + 'px';
-        renderPreview();
+    function togglePlay() { isPlaying = !isPlaying; if(isPlaying) loop(); }
+    function loop() {
+        if(!isPlaying) return;
+        curTime += 1/fps;
+        if(curTime > frames.length/fps) curTime = 0;
+        document.getElementById('playhead').style.left = (curTime * pxPerSec) + 'px';
+        draw(); setTimeout(loop, 1000/fps);
     }
+
+    function deleteItem() { items = items.filter(i => i.id !== selectedId); document.getElementById('editor-ui').style.display = 'none'; renderTimeline(); draw(); }
+    window.onkeydown = e => { if(e.key === 'Enter' && mode === 'shoot') takePhoto(); };
 
     async function exportVideo() {
-        alert("書き出しを開始します...");
-        const stream = previewCanvas.captureStream(fps);
-        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        const stream = mainCanvas.captureStream(fps);
+        const rec = new MediaRecorder(stream, {mimeType:'video/webm'});
         const chunks = [];
-        recorder.ondataavailable = e => chunks.push(e.data);
-        recorder.onstop = () => {
+        rec.ondataavailable = e => chunks.push(e.data);
+        rec.onstop = () => {
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
-            a.download = 'koma-movie.webm'; a.click();
+            a.href = URL.createObjectURL(new Blob(chunks, {type:'video/webm'}));
+            a.download = 'stopmotion-pro.webm'; a.click();
         };
-        recorder.start();
-        for(let i=0; i<frames.length; i++) {
-            currentTime = i/fps;
-            renderPreview();
-            await new Promise(r => setTimeout(r, 100));
-        }
-        recorder.stop();
+        rec.start(); isPlaying = false;
+        for(let i=0; i<frames.length; i++) { curTime = i/fps; draw(); await new Promise(r => setTimeout(r, 100)); }
+        rec.stop();
     }
 </script>
 </body>
