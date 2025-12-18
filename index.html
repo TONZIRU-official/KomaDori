@@ -2,69 +2,77 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>コマ撮り専用カメラ</title>
+    <title>STOPMOTION CAMERA PRO</title>
     <style>
-        body { font-family: sans-serif; background: #1a1a1a; color: white; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        :root {
+            --bg: #121212; --panel: #1e1e1e; --accent: #ff4757;
+            --blue: #00a8ff; --green: #2ed573; --text: #eee;
+        }
+        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
         
-        /* パスコード画面 */
-        #lock-screen { position: fixed; inset: 0; background: #000; z-index: 100; display: flex; align-items: center; justify-content: center; }
-        .lock-box { background: #222; padding: 30px; border-radius: 10px; border: 1px solid #444; text-align: center; }
-        input[type="password"] { font-size: 20px; padding: 10px; border-radius: 5px; border: none; margin-bottom: 20px; text-align: center; }
+        /* ロック画面 */
+        #lock-screen { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; align-items: center; justify-content: center; }
+        .lock-card { background: var(--panel); padding: 40px; border-radius: 12px; border: 1px solid var(--blue); text-align: center; }
+        input[type="password"] { font-size: 20px; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; width: 200px; text-align: center; margin-bottom: 20px; outline: none; }
 
-        /* メインレイアウト */
-        header { background: #000; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
-        .main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; padding: 20px; }
-        
-        /* カメラ・モニターエリア */
-        .monitor { position: relative; width: 640px; height: 480px; background: #000; border: 4px solid #333; border-radius: 8px; overflow: hidden; }
-        canvas, video { position: absolute; top: 0; left: 0; width: 640px; height: 480px; }
-        #onion-layer { opacity: 0.4; pointer-events: none; } /* 前の写真を透かすレイヤー */
+        /* ヘッダー */
+        header { background: #000; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
+        .status { font-weight: bold; color: var(--blue); }
 
-        /* 撮った写真が並ぶエリア（編集レールではなく、確認用の写真置き場） */
-        .gallery { height: 120px; background: #111; display: flex; gap: 5px; padding: 10px; overflow-x: auto; border-top: 1px solid #333; }
-        .gallery img { height: 100px; border: 1px solid #444; border-radius: 4px; }
+        /* メインエリア */
+        .container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; }
+        .monitor-wrapper { position: relative; width: 640px; height: 480px; background: #000; border: 3px solid #333; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        video, canvas { position: absolute; top: 0; left: 0; width: 640px; height: 480px; }
+        #onion-layer { opacity: 0.4; pointer-events: none; }
 
-        /* ボタン */
-        .controls { display: flex; gap: 20px; margin-top: 20px; align-items: center; }
-        .btn { padding: 15px 30px; font-size: 18px; font-weight: bold; border-radius: 50px; border: none; cursor: pointer; transition: 0.2s; }
-        .btn-shoot { background: #ff4757; color: white; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4); }
-        .btn-shoot:active { transform: scale(0.95); }
-        .btn-play { background: #2ed573; color: white; }
-        .btn-clear { background: #57606f; color: white; font-size: 12px; padding: 10px 20px; }
+        /* コントロールパネル (GUI) */
+        .controls { display: flex; gap: 15px; margin-top: 15px; align-items: center; flex-wrap: wrap; justify-content: center; }
+        .btn { padding: 12px 24px; font-size: 15px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; color: white; }
+        .btn:hover { opacity: 0.8; transform: translateY(-1px); }
+        .btn-shoot { background: var(--accent); font-size: 18px; padding: 15px 40px; }
+        .btn-play { background: var(--blue); }
+        .btn-undo { background: #57606f; } /* 一つ削除 */
+        .btn-clear { background: #333; border: 1px solid #555; font-size: 12px; } /* 全削除 */
+
+        /* 下部ギャラリー */
+        .gallery { height: 110px; background: #0a0a0a; display: flex; gap: 6px; padding: 8px; overflow-x: auto; border-top: 1px solid #222; }
+        .gallery-item { height: 90px; border: 1px solid #444; position: relative; }
+        .gallery-item span { position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.7); font-size: 10px; padding: 2px 4px; }
     </style>
 </head>
 <body>
 
 <div id="lock-screen">
-    <div class="lock-box">
+    <div class="lock-card">
         <h2>🔑 PASSCODE</h2>
         <input type="password" id="pass-input" placeholder="****">
         <br>
-        <button class="btn btn-play" onclick="checkPass()">ENTER</button>
+        <button class="btn btn-play" style="width:100%" onclick="checkPass()">ENTER</button>
     </div>
 </div>
 
 <header>
-    <div style="font-weight: bold; letter-spacing: 2px;">STOPMOTION CAMERA</div>
-    <div>枚数: <span id="count">0</span>枚</div>
+    <div class="status">🎬 STOPMOTION STUDIO</div>
+    <div>コマ数: <span id="count" style="font-size: 20px;">0</span></div>
 </header>
 
-<div class="main">
-    <div class="monitor">
+<div class="container">
+    <div class="monitor-wrapper">
         <video id="video" autoplay playsinline muted></video>
-        <canvas id="onion-layer"></canvas>
-        <canvas id="play-canvas" style="display:none;"></canvas> </div>
+        <canvas id="onion-layer"></canvas> <canvas id="play-canvas" style="display:none;"></canvas> </div>
 
     <div class="controls">
         <button class="btn btn-shoot" onclick="takePhoto()">📸 撮影 (Enter)</button>
-        <button class="btn btn-play" id="play-btn" onclick="togglePlay()">⏯️ プレビュー再生</button>
-        <button class="btn btn-clear" onclick="clearPhotos()">全削除</button>
-        <div style="font-size: 12px;">再生速度: <input type="number" id="fps" value="10" style="width:40px; background: #000; color: white; border: 1px solid #444;"> fps</div>
+        <button class="btn btn-play" id="play-btn" onclick="togglePlay()">⏯️ 再生</button>
+        <button class="btn btn-undo" onclick="deleteLast()">↩️ 1つ削除</button>
+        <button class="btn btn-clear" onclick="clearPhotos()">🗑️ 全削除</button>
+        <div style="font-size: 12px; color: #888;">
+            速度: <input type="number" id="fps" value="10" style="width:40px; background:#000; color:#fff; border:1px solid #444;"> fps
+        </div>
     </div>
 </div>
 
-<div class="gallery" id="gallery">
-    </div>
+<div class="gallery" id="gallery"></div>
 
 <script>
     const PASS = "ArtStop";
@@ -86,64 +94,100 @@
     }
 
     async function startCamera() {
-        const stream = await navigator.mediaDevices.getUserMedia({video: {width: 640, height: 480}});
-        video.srcObject = stream;
-        onionCanvas.width = playCanvas.width = 640;
-        onionCanvas.height = playCanvas.height = 480;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({video: {width: 640, height: 480}});
+            video.srcObject = stream;
+            onionCanvas.width = playCanvas.width = 640;
+            onionCanvas.height = playCanvas.height = 480;
+        } catch (e) { alert("カメラが見つかりません"); }
     }
 
-    // 撮影：写真を撮ってオニオンスキンにする
     function takePhoto() {
         if(isPlaying) return;
-
         const c = document.createElement('canvas');
         c.width = 640; c.height = 480;
         c.getContext('2d').drawImage(video, 0, 0);
         const data = c.toDataURL('image/png');
-        
         frames.push(data);
         updateUI();
+        updateOnionSkin(data);
+    }
 
-        // オニオンスキン（今の写真を透かして表示）
+    // 1つ削除 (直前のコマを消す)
+    function deleteLast() {
+        if(frames.length === 0) return;
+        if(confirm("最新の1コマを削除しますか？")) {
+            frames.pop();
+            updateUI();
+            // オニオンスキンを新しい「最後の1枚」に更新
+            if(frames.length > 0) {
+                updateOnionSkin(frames[frames.length - 1]);
+            } else {
+                oCtx.clearRect(0, 0, 640, 480);
+            }
+        }
+    }
+
+    // 全削除
+    function clearPhotos() {
+        if(frames.length === 0) return;
+        if(confirm("撮った写真をすべて削除してもよろしいですか？")) {
+            frames = [];
+            oCtx.clearRect(0, 0, 640, 480);
+            updateUI();
+        }
+    }
+
+    function updateOnionSkin(src) {
         const img = new Image();
         img.onload = () => {
-            oCtx.clearRect(0,0,640,480);
+            oCtx.clearRect(0, 0, 640, 480);
             oCtx.drawImage(img, 0, 0);
         };
-        img.src = data;
+        img.src = src;
     }
 
     function updateUI() {
         document.getElementById('count').innerText = frames.length;
         const gal = document.getElementById('gallery');
         gal.innerHTML = '';
-        frames.slice().reverse().forEach(src => { // 新しい順に並べる
+        // ギャラリーには新しい順（右側が新しい）に表示
+        frames.forEach((src, index) => {
+            const div = document.createElement('div');
+            div.className = 'gallery-item';
             const img = document.createElement('img');
             img.src = src;
-            gal.appendChild(img);
+            img.style.height = "90px";
+            const label = document.createElement('span');
+            label.innerText = index + 1;
+            div.appendChild(img);
+            div.appendChild(label);
+            gal.appendChild(div);
         });
+        gal.scrollLeft = gal.scrollWidth; // 常に最新コマへスクロール
     }
 
-    // プレビュー再生
     function togglePlay() {
+        if(frames.length === 0) return;
         isPlaying = !isPlaying;
         const btn = document.getElementById('play-btn');
         if(isPlaying) {
             btn.innerText = "⏹️ 停止";
+            btn.style.background = "#57606f";
             playCanvas.style.display = "block";
             playLoop();
         } else {
-            btn.innerText = "⏯️ プレビュー再生";
+            btn.innerText = "⏯️ 再生";
+            btn.style.background = "#00a8ff";
             playCanvas.style.display = "none";
         }
     }
 
     function playLoop() {
-        if(!isPlaying || frames.length === 0) return;
-        
+        if(!isPlaying) return;
         const img = new Image();
         img.onload = () => {
-            pCtx.clearRect(0,0,640,480);
+            pCtx.clearRect(0, 0, 640, 480);
             pCtx.drawImage(img, 0, 0);
             playIdx = (playIdx + 1) % frames.length;
             setTimeout(playLoop, 1000 / document.getElementById('fps').value);
@@ -151,15 +195,12 @@
         img.src = frames[playIdx];
     }
 
-    function clearPhotos() {
-        if(confirm("すべて削除しますか？")) {
-            frames = [];
-            oCtx.clearRect(0,0,640,480);
-            updateUI();
+    window.onkeydown = (e) => { 
+        if(e.key === 'Enter') {
+            e.preventDefault();
+            takePhoto();
         }
-    }
-
-    window.onkeydown = (e) => { if(e.key === 'Enter') takePhoto(); };
+    };
 </script>
 </body>
 </html>
