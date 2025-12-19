@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>KOMADORI STUDIO</title>
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
     <style>
         :root {
             --bg: #121212; --panel: #1e1e1e; --accent: #ff4757;
@@ -41,9 +40,7 @@
         .del-btn { position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; background: var(--accent); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; border: 2px solid #000; visibility: hidden; }
         .gallery-item:hover .del-btn { visibility: visible; }
         
-        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; text-align: center; }
-        .loading-spin { border: 4px solid #f3f3f3; border-top: 4px solid var(--blue); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 10px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; }
     </style>
 </head>
 <body>
@@ -58,7 +55,6 @@
 </div>
 
 <div id="overlay">
-    <div class="loading-spin"></div>
     <h2 id="overlay-msg">🎬 処理中...</h2>
 </div>
 
@@ -84,7 +80,7 @@
         <button class="btn btn-shoot" onclick="takePhoto()">📸 撮影 (Enter)</button>
         <button class="btn btn-play" id="play-btn" onclick="togglePlay()">⏯️ 再生 (Space)</button>
         <button class="btn btn-undo" onclick="deleteLast()">↩️ 最後を消す (Z)</button>
-        <button class="btn" style="background:var(--green);" onclick="downloadMP4()">📹 MP4書き出し</button>
+        <button class="btn" style="background:var(--green);" onclick="downloadVideo()">📹 書き出し</button>
         <button class="btn" style="background:#333; color:var(--accent);" onclick="resetAll()">🔄 リセット</button>
         <div style="font-size: 12px; color: #888;">速度: <input type="number" id="fps" value="10" style="width:40px; background:#000; color:#fff; border:1px solid #444;"> fps</div>
     </div>
@@ -99,10 +95,6 @@
     let isPlaying = false;
     let playIdx = 0;
     let currentFacingMode = "user";
-
-    // FFmpegのセットアップ
-    const { createFFmpeg, fetchFile } = FFmpeg;
-    const ffmpeg = createFFmpeg({ log: false });
 
     const video = document.getElementById('video');
     const onionCanvas = document.getElementById('onion-layer');
@@ -147,6 +139,7 @@
         updateOnionSkin(data);
     }
 
+    // 指定した番号のコマを削除
     function deleteFrame(index) {
         if(confirm(`${index + 1}番目のコマを削除しますか？`)) {
             frames.splice(index, 1);
@@ -177,7 +170,12 @@
         frames.forEach((src, i) => {
             const div = document.createElement('div');
             div.className = 'gallery-item';
-            div.innerHTML = `<img src="${src}"><span>${i+1}</span><div class="del-btn" onclick="event.stopPropagation(); deleteFrame(${i})">×</div>`;
+            div.innerHTML = `
+                <img src="${src}">
+                <span>${i+1}</span>
+                <div class="del-btn" onclick="event.stopPropagation(); deleteFrame(${i})">×</div>
+            `;
+            // クリックでそのコマをオニオンスキン（ガイド）に設定
             div.onclick = () => updateOnionSkin(src);
             gal.appendChild(div);
         });
@@ -209,43 +207,6 @@
         img.src = frames[playIdx];
     }
 
-    // MP4書き出し機能
-    async function downloadMP4() {
-        if(frames.length === 0) return;
-        const msg = document.getElementById('overlay-msg');
-        const overlay = document.getElementById('overlay');
-        
-        overlay.style.display = 'flex';
-        msg.innerText = "🎬 MP4に変換中... (時間がかかる場合があります)";
-
-        try {
-            if (!ffmpeg.isLoaded()) await ffmpeg.load();
-
-            for (let i = 0; i < frames.length; i++) {
-                const name = `f${i.toString().padStart(5, '0')}.png`;
-                ffmpeg.FS('writeFile', name, await fetchFile(frames[i]));
-            }
-
-            const fps = document.getElementById('fps').value;
-            await ffmpeg.run('-framerate', fps.toString(), '-i', 'f%05d.png', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', 'out.mp4');
-
-            const data = ffmpeg.FS('readFile', 'out.mp4');
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
-            a.download = 'komadori_animation.mp4';
-            a.click();
-
-            // メモリ解放
-            for (let i = 0; i < frames.length; i++) {
-                ffmpeg.FS('unlink', `f${i.toString().padStart(5, '0')}.png`);
-            }
-        } catch (e) {
-            alert("MP4変換に失敗しました。枚数を減らすか、別のブラウザを試してください。");
-            console.error(e);
-        }
-        overlay.style.display = 'none';
-    }
-
     function saveProject() {
         const blob = new Blob([JSON.stringify({fps: document.getElementById('fps').value, frames})], {type:'application/json'});
         const a = document.createElement('a');
@@ -256,7 +217,6 @@
     function loadProject(e) {
         const reader = new FileReader();
         document.getElementById('overlay').style.display = 'flex';
-        document.getElementById('overlay-msg').innerText = "📂 読み込み中...";
         reader.onload = (ev) => {
             const data = JSON.parse(ev.target.result);
             frames = data.frames;
@@ -266,6 +226,34 @@
             document.getElementById('overlay').style.display = 'none';
         };
         reader.readAsText(e.target.files[0]);
+    }
+
+    async function downloadVideo() {
+        if(frames.length === 0) return;
+        document.getElementById('overlay-msg').innerText = "📹 書き出し中...";
+        document.getElementById('overlay').style.display = 'flex';
+        const fps = document.getElementById('fps').value;
+        const stream = playCanvas.captureStream(fps);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        const chunks = [];
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob(chunks, {type:'video/webm'}));
+            a.download = 'animation.webm'; a.click();
+            document.getElementById('overlay').style.display = 'none';
+        };
+        recorder.start();
+        playCanvas.style.display = "block";
+        for(let f of frames) {
+            await new Promise(res => {
+                const img = new Image();
+                img.onload = () => { pCtx.clearRect(0,0,640,480); pCtx.drawImage(img,0,0); setTimeout(res, 1000/fps); };
+                img.src = f;
+            });
+        }
+        recorder.stop();
+        playCanvas.style.display = "none";
     }
 
     window.onkeydown = (e) => {
