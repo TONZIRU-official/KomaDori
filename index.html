@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>KOMADORI STUDIO - LIVE COLLAB</title>
+    <title>KOMADORI STUDIO</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
@@ -11,7 +11,6 @@
         }
         body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
         
-        /* ロック画面 */
         #lock-screen { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; align-items: center; justify-content: center; }
         .lock-card { background: var(--panel); padding: 40px; border-radius: 12px; border: 1px solid var(--blue); text-align: center; }
         input[type="password"] { font-size: 20px; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; width: 200px; text-align: center; margin-bottom: 20px; outline: none; }
@@ -31,12 +30,14 @@
         .btn-shoot { background: var(--accent); font-size: 18px; padding: 15px 30px; }
         .btn-play { background: var(--blue); }
         .btn-download { background: var(--green); }
-        .btn-save { background: var(--purple); }
-        .btn-load { background: #4b6584; }
+        .btn-save { background: var(--purple); } 
+        .btn-load { background: #4b6584; } 
         .btn-undo { background: #57606f; }
         .btn-reset { background: #333; border: 1px solid var(--accent); color: var(--accent); }
-        /* 共有ボタン用 */
-        .btn-share { background: #6c5ce7; border: 1px solid #a29bfe; }
+        
+        /* 共有ボタン：紫系で統一 */
+        .btn-share { background: #6c5ce7; }
+        .btn-join { background: #4834d4; }
 
         .gallery { height: 110px; background: #0a0a0a; display: flex; gap: 6px; padding: 8px; overflow-x: auto; border-top: 1px solid #222; }
         .gallery-item { height: 90px; border: 1px solid #444; position: relative; }
@@ -44,10 +45,10 @@
         
         #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; }
 
-        /* 共有用ポップアップ */
+        /* 共有モーダル */
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 3000; }
-        .modal-content { background: var(--panel); padding: 30px; border-radius: 12px; border: 2px solid var(--purple); width: 400px; text-align: center; }
-        .code-display { font-size: 32px; font-family: monospace; color: var(--purple); background: #000; padding: 10px; border-radius: 8px; margin: 20px 0; border: 1px dashed var(--purple); }
+        .modal-content { background: var(--panel); padding: 30px; border-radius: 12px; border: 2px solid var(--purple); width: 320px; text-align: center; }
+        .code-display { font-size: 28px; letter-spacing: 3px; font-family: monospace; color: #fff; background: #000; padding: 15px; border-radius: 8px; margin: 20px 0; border: 2px solid var(--purple); font-weight: bold; }
     </style>
 </head>
 <body>
@@ -67,24 +68,23 @@
 
 <div id="share-modal" class="modal">
     <div class="modal-content">
-        <h3>🤝 共同作業を開始</h3>
-        <p>このコードを相手に伝えてください：</p>
-        <div id="my-peer-id" class="code-display">発行中...</div>
-        <p style="font-size: 12px; color: #888;">相手が接続すると、写真が同期されます。</p>
-        <button class="btn" style="background:#555; width:100%" onclick="closeModal()">閉じる</button>
+        <h3>🤝 共有コード</h3>
+        <p>相手にこの8文字を伝えてください</p>
+        <div id="my-peer-id" class="code-display">--------</div>
+        <button class="btn" style="background:#555; width:100%" onclick="closeModal()">とじる</button>
     </div>
 </div>
 
 <header>
-    <div>
+    <div style="display: flex; align-items: center;">
         <span class="status">🎬 KOMADORI STUDIO</span>
         <span id="conn-info" class="conn-status">● オフライン</span>
     </div>
     <div style="display: flex; gap: 10px;">
-        <button class="btn btn-share" onclick="openShareModal()">🔗 共有コードを発行</button>
-        <button class="btn btn-share" style="background:#4834d4;" onclick="joinRoom()">📥 コードを入力して参加</button>
-        <button class="btn btn-save" onclick="saveProject()">💾 保存</button>
-        <button class="btn btn-load" onclick="document.getElementById('file-input').click()">📂 読込</button>
+        <button class="btn btn-share" onclick="openShareModal()">🔗 コード発行</button>
+        <button class="btn btn-join" onclick="joinRoom()">📥 コード入力</button>
+        <button class="btn btn-save" onclick="saveProject()">💾 セーブ</button>
+        <button class="btn btn-load" onclick="document.getElementById('file-input').click()">📂 ロード</button>
         <input type="file" id="file-input" style="display:none;" accept=".json" onchange="loadProject(event)">
     </div>
     <div>コマ数: <span id="count" style="font-size: 20px;">0</span></div>
@@ -114,8 +114,6 @@
     let frames = [];
     let isPlaying = false;
     let playIdx = 0;
-
-    // 通信用の変数
     let peer = null;
     let conn = null;
 
@@ -139,7 +137,77 @@
         onionCanvas.height = playCanvas.height = 480;
     }
 
-    // --- 【修正】撮影機能 (sendDataで同期) ---
+    // --- 共有機能：8文字コード生成 ---
+    function openShareModal() {
+        document.getElementById('share-modal').style.display = 'flex';
+        if (!peer) {
+            // ランダムな8文字（大文字英数字）を生成
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 読み間違いやすいI,O,1,0を除外
+            let customId = '';
+            for (let i = 0; i < 8; i++) customId += chars.charAt(Math.floor(Math.random() * chars.length));
+
+            peer = new Peer(customId);
+            peer.on('open', (id) => {
+                document.getElementById('my-peer-id').innerText = id;
+            });
+            peer.on('connection', (c) => {
+                conn = c;
+                initConnection();
+            });
+            peer.on('error', (err) => {
+                alert("接続エラーが発生しました。もう一度やり直してください。");
+                peer = null;
+                closeModal();
+            });
+        }
+    }
+
+    function joinRoom() {
+        const targetId = prompt("相手の8文字コードを入力してください:").toUpperCase();
+        if (!targetId || targetId.length !== 8) { alert("正しい8文字のコードを入力してください"); return; }
+        
+        if (!peer) {
+            // 参加側もランダムなIDでPeerを初期化
+            peer = new Peer();
+            peer.on('open', () => {
+                conn = peer.connect(targetId);
+                initConnection();
+            });
+        } else {
+            conn = peer.connect(targetId);
+            initConnection();
+        }
+    }
+
+    function initConnection() {
+        conn.on('open', () => {
+            document.getElementById('conn-info').innerText = "✅ 接続済み";
+            document.getElementById('conn-info').style.color = "var(--green)";
+            closeModal();
+            conn.send({ type: 'SYNC', frames: frames });
+        });
+
+        conn.on('data', (data) => {
+            if (data.type === 'ADD') {
+                frames.push(data.frame);
+                updateUI();
+                updateOnionSkin(data.frame);
+            } else if (data.type === 'UNDO') {
+                frames.pop();
+                updateUI();
+                if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
+                else oCtx.clearRect(0, 0, 640, 480);
+            } else if (data.type === 'SYNC') {
+                frames = data.frames;
+                updateUI();
+                if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
+            }
+        });
+    }
+
+    function closeModal() { document.getElementById('share-modal').style.display = 'none'; }
+
+    // --- 基本操作（同期対応） ---
     function takePhoto(shouldSync) {
         if(isPlaying) return;
         const c = document.createElement('canvas');
@@ -150,13 +218,11 @@
         updateUI();
         updateOnionSkin(data);
 
-        // 相手にデータを送る
         if(shouldSync && conn && conn.open) {
             conn.send({ type: 'ADD', frame: data });
         }
     }
 
-    // --- 【修正】1つ戻る (sendDataで同期) ---
     function deleteLast(shouldSync) {
         if(frames.length === 0) return;
         frames.pop();
@@ -169,61 +235,6 @@
         }
     }
 
-    // --- 【新機能】リアルタイム共同作業のロジック ---
-
-    function openShareModal() {
-        document.getElementById('share-modal').style.display = 'flex';
-        if (!peer) {
-            peer = new Peer();
-            peer.on('open', (id) => {
-                document.getElementById('my-peer-id').innerText = id;
-            });
-            peer.on('connection', (c) => {
-                conn = c;
-                initConnection();
-            });
-        }
-    }
-
-    function joinRoom() {
-        const targetId = prompt("相手の共有コードを入力してください:");
-        if (!targetId) return;
-        if (!peer) peer = new Peer();
-        
-        peer.on('open', () => {
-            conn = peer.connect(targetId);
-            initConnection();
-        });
-    }
-
-    function initConnection() {
-        conn.on('open', () => {
-            document.getElementById('conn-info').innerText = "● 接続済み";
-            document.getElementById('conn-info').style.color = "var(--green)";
-            closeModal();
-            // 接続直後に、今ある全コマを送って同期する
-            conn.send({ type: 'SYNC', frames: frames });
-        });
-
-        conn.on('data', (data) => {
-            if (data.type === 'ADD') {
-                frames.push(data.frame);
-                updateUI();
-                updateOnionSkin(data.frame);
-            } else if (data.type === 'UNDO') {
-                deleteLast(false);
-            } else if (data.type === 'SYNC') {
-                frames = data.frames;
-                updateUI();
-                if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
-            }
-        });
-    }
-
-    function closeModal() { document.getElementById('share-modal').style.display = 'none'; }
-
-    // --- 既存の便利機能（セーブ・ロード等） ---
-
     function resetAll() {
         if(frames.length === 0) return;
         if(confirm("すべてリセットしますか？")) {
@@ -233,13 +244,14 @@
         }
     }
 
+    // --- その他機能（保存・再生・書き出し） ---
     function saveProject() {
         if(frames.length === 0) { alert("保存するデータがありません"); return; }
         const data = { fps: document.getElementById('fps').value, frames: frames };
         const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `stopmotion_save.json`;
+        a.download = `stopmotion_${new Date().getTime()}.json`;
         a.click();
     }
 
@@ -311,7 +323,7 @@
     async function downloadVideo() {
         if(frames.length === 0) return;
         isPlaying = false;
-        document.getElementById('overlay-msg').innerText = "📹 動画ファイルを書き出し中...";
+        document.getElementById('overlay-msg').innerText = "📹 書き出し中...";
         document.getElementById('overlay').style.display = 'flex';
         const currentFps = document.getElementById('fps').value;
         const stream = playCanvas.captureStream(currentFps);
