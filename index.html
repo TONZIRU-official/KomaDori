@@ -10,7 +10,6 @@
         }
         body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
         
-        /* ロック画面 */
         #lock-screen { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; align-items: center; justify-content: center; }
         .lock-card { background: var(--panel); padding: 40px; border-radius: 12px; border: 1px solid var(--blue); text-align: center; }
         input[type="password"] { font-size: 20px; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; width: 200px; text-align: center; margin-bottom: 20px; outline: none; }
@@ -19,21 +18,20 @@
         .status { font-weight: bold; color: var(--blue); }
 
         .container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; position: relative; }
-        .monitor-wrapper { position: relative; width: 640px; height: 480px; background: #000; border: 3px solid #333; border-radius: 8px; }
-        video, canvas { position: absolute; top: 0; left: 0; width: 640px; height: 480px; }
+        .monitor-wrapper { position: relative; width: 640px; height: 480px; background: #000; border: 3px solid #333; border-radius: 8px; overflow: hidden; }
+        video, canvas { position: absolute; top: 0; left: 0; width: 640px; height: 480px; object-fit: cover; }
         #onion-layer { opacity: 0.4; pointer-events: none; }
 
-        /* ボタン類（配置を維持） */
         .controls { display: flex; gap: 10px; margin-top: 15px; align-items: center; flex-wrap: wrap; justify-content: center; }
         .btn { padding: 10px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; color: white; display: flex; align-items: center; gap: 5px; }
         .btn:hover { opacity: 0.8; transform: translateY(-1px); }
         .btn-shoot { background: var(--accent); font-size: 18px; padding: 15px 30px; }
         .btn-play { background: var(--blue); }
-        .btn-download { background: var(--green); }
         .btn-save { background: var(--purple); } 
-        .btn-load { background: #4b6584; } 
         .btn-undo { background: #57606f; }
-        .btn-reset { background: #333; border: 1px solid var(--accent); color: var(--accent); }
+        .btn-cam { background: #444; border: 1px solid #666; }
+
+        .guide { font-size: 11px; color: #777; margin-top: 8px; }
 
         .gallery { height: 110px; background: #0a0a0a; display: flex; gap: 6px; padding: 8px; overflow-x: auto; border-top: 1px solid #222; }
         .gallery-item { height: 90px; border: 1px solid #444; position: relative; flex-shrink: 0; }
@@ -60,8 +58,9 @@
 <header>
     <div><span class="status">🎬 KOMADORI STUDIO</span></div>
     <div style="display: flex; gap: 10px;">
-        <button class="btn btn-save" onclick="saveProject()">💾 セーブ</button>
-        <button class="btn btn-load" onclick="document.getElementById('file-input').click()">📂 ロード</button>
+        <button class="btn btn-cam" onclick="switchCamera()">📷 カメラ切替</button>
+        <button class="btn btn-save" onclick="saveProject()">💾 セーブ (S)</button>
+        <button class="btn" style="background:#4b6584;" onclick="document.getElementById('file-input').click()">📂 ロード</button>
         <input type="file" id="file-input" style="display:none;" accept=".json" onchange="loadProject(event)">
     </div>
     <div>コマ数: <span id="count" style="font-size: 20px;">0</span></div>
@@ -76,12 +75,13 @@
 
     <div class="controls">
         <button class="btn btn-shoot" onclick="takePhoto()">📸 撮影 (Enter)</button>
-        <button class="btn btn-play" id="play-btn" onclick="togglePlay()">⏯️ 再生</button>
-        <button class="btn btn-download" onclick="downloadVideo()">📹 動画書き出し</button>
-        <button class="btn btn-undo" onclick="deleteLast()">↩️ 1つ戻る</button>
-        <button class="btn btn-reset" onclick="resetAll()">🔄 リセット</button>
+        <button class="btn btn-play" id="play-btn" onclick="togglePlay()">⏯️ 再生 (Space)</button>
+        <button class="btn btn-undo" onclick="deleteLast()">↩️ 戻る (Z)</button>
+        <button class="btn" style="background:var(--green);" onclick="downloadVideo()">📹 書き出し</button>
+        <button class="btn" style="background:#333; color:var(--accent);" onclick="resetAll()">🔄 リセット</button>
         <div style="font-size: 12px; color: #888;">速度: <input type="number" id="fps" value="10" style="width:40px; background:#000; color:#fff; border:1px solid #444;"> fps</div>
     </div>
+    <div class="guide">ショートカット: [Enter]撮影 / [Space]再生 / [Z]1つ戻る / [S]保存</div>
 </div>
 
 <div class="gallery" id="gallery"></div>
@@ -91,6 +91,7 @@
     let frames = [];
     let isPlaying = false;
     let playIdx = 0;
+    let currentFacingMode = "user"; // "user" または "environment"
 
     const video = document.getElementById('video');
     const onionCanvas = document.getElementById('onion-layer');
@@ -106,19 +107,29 @@
     }
 
     async function startCamera() {
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+        }
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({video: {width: 640, height: 480}});
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: currentFacingMode, width: 640, height: 480 }
+            });
             video.srcObject = stream;
             onionCanvas.width = playCanvas.width = 640;
             onionCanvas.height = playCanvas.height = 480;
-        } catch(e) { alert("カメラが見つかりません。使用を許可してください。"); }
+        } catch(e) { alert("カメラの起動に失敗しました。"); }
+    }
+
+    function switchCamera() {
+        currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
+        startCamera();
     }
 
     function takePhoto() {
         if(isPlaying) return;
         const c = document.createElement('canvas');
         c.width = 640; c.height = 480;
-        c.getContext('2d').drawImage(video, 0, 0);
+        c.getContext('2d').drawImage(video, 0, 0, 640, 480);
         const data = c.toDataURL('image/png');
         frames.push(data);
         updateUI();
@@ -181,7 +192,7 @@
         const blob = new Blob([JSON.stringify({fps: document.getElementById('fps').value, frames})], {type:'application/json'});
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `stopmo_backup.json`; a.click();
+        a.download = `stopmo_save.json`; a.click();
     }
 
     function loadProject(e) {
@@ -226,7 +237,15 @@
         playCanvas.style.display = "none";
     }
 
-    window.onkeydown = (e) => { if(e.key === 'Enter') takePhoto(); };
+    // --- キーボードショートカット設定 ---
+    window.onkeydown = (e) => {
+        if(document.getElementById('lock-screen').style.display !== 'none') return;
+        const key = e.key.toLowerCase();
+        if(key === 'enter') { e.preventDefault(); takePhoto(); }
+        if(key === ' ') { e.preventDefault(); togglePlay(); }
+        if(key === 'z') { e.preventDefault(); deleteLast(); }
+        if(key === 's') { e.preventDefault(); saveProject(); }
+    };
 </script>
 </body>
 </html>
