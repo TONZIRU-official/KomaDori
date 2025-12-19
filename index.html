@@ -2,7 +2,8 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>KOMADORI STUDIO</title>
+    <title>KOMADORI STUDIO - LIVE COLLAB</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
             --bg: #121212; --panel: #1e1e1e; --accent: #ff4757;
@@ -17,6 +18,7 @@
 
         header { background: #000; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
         .status { font-weight: bold; color: var(--blue); }
+        .conn-status { font-size: 12px; color: #888; margin-left: 10px; }
 
         .container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; position: relative; }
         .monitor-wrapper { position: relative; width: 640px; height: 480px; background: #000; border: 3px solid #333; border-radius: 8px; }
@@ -29,16 +31,23 @@
         .btn-shoot { background: var(--accent); font-size: 18px; padding: 15px 30px; }
         .btn-play { background: var(--blue); }
         .btn-download { background: var(--green); }
-        .btn-save { background: var(--purple); } /* セーブデータ作成 */
-        .btn-load { background: #4b6584; } /* セーブデータ読込 */
+        .btn-save { background: var(--purple); }
+        .btn-load { background: #4b6584; }
         .btn-undo { background: #57606f; }
         .btn-reset { background: #333; border: 1px solid var(--accent); color: var(--accent); }
+        /* 共有ボタン用 */
+        .btn-share { background: #6c5ce7; border: 1px solid #a29bfe; }
 
         .gallery { height: 110px; background: #0a0a0a; display: flex; gap: 6px; padding: 8px; overflow-x: auto; border-top: 1px solid #222; }
         .gallery-item { height: 90px; border: 1px solid #444; position: relative; }
         .gallery-item span { position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.7); font-size: 10px; padding: 2px 4px; }
         
         #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; }
+
+        /* 共有用ポップアップ */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 3000; }
+        .modal-content { background: var(--panel); padding: 30px; border-radius: 12px; border: 2px solid var(--purple); width: 400px; text-align: center; }
+        .code-display { font-size: 32px; font-family: monospace; color: var(--purple); background: #000; padding: 10px; border-radius: 8px; margin: 20px 0; border: 1px dashed var(--purple); }
     </style>
 </head>
 <body>
@@ -56,11 +65,26 @@
     <h2 id="overlay-msg">🎬 処理中...</h2>
 </div>
 
+<div id="share-modal" class="modal">
+    <div class="modal-content">
+        <h3>🤝 共同作業を開始</h3>
+        <p>このコードを相手に伝えてください：</p>
+        <div id="my-peer-id" class="code-display">発行中...</div>
+        <p style="font-size: 12px; color: #888;">相手が接続すると、写真が同期されます。</p>
+        <button class="btn" style="background:#555; width:100%" onclick="closeModal()">閉じる</button>
+    </div>
+</div>
+
 <header>
-    <div class="status">🎬 KOMADORI STUDIO</div>
-    <div style="display: flex; gap: 15px;">
-        <button class="btn btn-save" onclick="saveProject()">💾 セーブ(保存)</button>
-        <button class="btn btn-load" onclick="document.getElementById('file-input').click()">📂 ロード(再開)</button>
+    <div>
+        <span class="status">🎬 KOMADORI STUDIO</span>
+        <span id="conn-info" class="conn-status">● オフライン</span>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button class="btn btn-share" onclick="openShareModal()">🔗 共有コードを発行</button>
+        <button class="btn btn-share" style="background:#4834d4;" onclick="joinRoom()">📥 コードを入力して参加</button>
+        <button class="btn btn-save" onclick="saveProject()">💾 保存</button>
+        <button class="btn btn-load" onclick="document.getElementById('file-input').click()">📂 読込</button>
         <input type="file" id="file-input" style="display:none;" accept=".json" onchange="loadProject(event)">
     </div>
     <div>コマ数: <span id="count" style="font-size: 20px;">0</span></div>
@@ -74,11 +98,11 @@
     </div>
 
     <div class="controls">
-        <button class="btn btn-shoot" onclick="takePhoto()">📸 撮影 (Enter)</button>
+        <button class="btn btn-shoot" onclick="takePhoto(true)">📸 撮影 (Enter)</button>
         <button class="btn btn-play" id="play-btn" onclick="togglePlay()">⏯️ 再生</button>
         <button class="btn btn-download" onclick="downloadVideo()">📹 動画書き出し</button>
-        <button class="btn btn-undo" onclick="deleteLast()">↩️ 1つ戻る</button>
-        <button class="btn btn-reset" onclick="resetAll()">🔄 すべてをリセット</button>
+        <button class="btn btn-undo" onclick="deleteLast(true)">↩️ 1つ戻る</button>
+        <button class="btn btn-reset" onclick="resetAll()">🔄 リセット</button>
         <div style="font-size: 12px; color: #888;">速度: <input type="number" id="fps" value="10" style="width:40px; background:#000; color:#fff; border:1px solid #444;"> fps</div>
     </div>
 </div>
@@ -90,6 +114,10 @@
     let frames = [];
     let isPlaying = false;
     let playIdx = 0;
+
+    // 通信用の変数
+    let peer = null;
+    let conn = null;
 
     const video = document.getElementById('video');
     const onionCanvas = document.getElementById('onion-layer');
@@ -111,7 +139,8 @@
         onionCanvas.height = playCanvas.height = 480;
     }
 
-    function takePhoto() {
+    // --- 【修正】撮影機能 (sendDataで同期) ---
+    function takePhoto(shouldSync) {
         if(isPlaying) return;
         const c = document.createElement('canvas');
         c.width = 640; c.height = 480;
@@ -120,69 +149,112 @@
         frames.push(data);
         updateUI();
         updateOnionSkin(data);
-    }
 
-    // 1つ戻る
-    function deleteLast() {
-        if(frames.length === 0) return;
-        if(confirm("直前の1コマを削除しますか？")) {
-            frames.pop();
-            updateUI();
-            if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
-            else oCtx.clearRect(0, 0, 640, 480);
+        // 相手にデータを送る
+        if(shouldSync && conn && conn.open) {
+            conn.send({ type: 'ADD', frame: data });
         }
     }
 
-    // すべてをリセット
+    // --- 【修正】1つ戻る (sendDataで同期) ---
+    function deleteLast(shouldSync) {
+        if(frames.length === 0) return;
+        frames.pop();
+        updateUI();
+        if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
+        else oCtx.clearRect(0, 0, 640, 480);
+
+        if(shouldSync && conn && conn.open) {
+            conn.send({ type: 'UNDO' });
+        }
+    }
+
+    // --- 【新機能】リアルタイム共同作業のロジック ---
+
+    function openShareModal() {
+        document.getElementById('share-modal').style.display = 'flex';
+        if (!peer) {
+            peer = new Peer();
+            peer.on('open', (id) => {
+                document.getElementById('my-peer-id').innerText = id;
+            });
+            peer.on('connection', (c) => {
+                conn = c;
+                initConnection();
+            });
+        }
+    }
+
+    function joinRoom() {
+        const targetId = prompt("相手の共有コードを入力してください:");
+        if (!targetId) return;
+        if (!peer) peer = new Peer();
+        
+        peer.on('open', () => {
+            conn = peer.connect(targetId);
+            initConnection();
+        });
+    }
+
+    function initConnection() {
+        conn.on('open', () => {
+            document.getElementById('conn-info').innerText = "● 接続済み";
+            document.getElementById('conn-info').style.color = "var(--green)";
+            closeModal();
+            // 接続直後に、今ある全コマを送って同期する
+            conn.send({ type: 'SYNC', frames: frames });
+        });
+
+        conn.on('data', (data) => {
+            if (data.type === 'ADD') {
+                frames.push(data.frame);
+                updateUI();
+                updateOnionSkin(data.frame);
+            } else if (data.type === 'UNDO') {
+                deleteLast(false);
+            } else if (data.type === 'SYNC') {
+                frames = data.frames;
+                updateUI();
+                if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
+            }
+        });
+    }
+
+    function closeModal() { document.getElementById('share-modal').style.display = 'none'; }
+
+    // --- 既存の便利機能（セーブ・ロード等） ---
+
     function resetAll() {
         if(frames.length === 0) return;
-        if(confirm("すべてをリセットして最初からやり直しますか？")) {
+        if(confirm("すべてリセットしますか？")) {
             frames = [];
             oCtx.clearRect(0, 0, 640, 480);
             updateUI();
         }
     }
 
-    // --- 【新機能】セーブ：データをJSONで保存 ---
     function saveProject() {
         if(frames.length === 0) { alert("保存するデータがありません"); return; }
-        const data = {
-            fps: document.getElementById('fps').value,
-            frames: frames,
-            timestamp: new Date().toISOString()
-        };
+        const data = { fps: document.getElementById('fps').value, frames: frames };
         const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = `stopmotion_save_${new Date().getTime()}.json`;
+        a.href = URL.createObjectURL(blob);
+        a.download = `stopmotion_save.json`;
         a.click();
     }
 
-    // --- 【新機能】ロード：JSONを読み込んで復元 ---
     function loadProject(event) {
         const file = event.target.files[0];
         if(!file) return;
-
         const reader = new FileReader();
-        document.getElementById('overlay-msg').innerText = "📂 プロジェクトを読み込み中...";
         document.getElementById('overlay').style.display = 'flex';
-
         reader.onload = (e) => {
-            try {
-                const data = JSON.parse(e.target.result);
-                frames = data.frames;
-                document.getElementById('fps').value = data.fps || 10;
-                
-                updateUI();
-                if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
-                
-                alert("ロードが完了しました！");
-            } catch (err) {
-                alert("セーブファイルの読み込みに失敗しました。");
-            }
+            const data = JSON.parse(e.target.result);
+            frames = data.frames;
+            document.getElementById('fps').value = data.fps || 10;
+            updateUI();
+            if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
             document.getElementById('overlay').style.display = 'none';
-            event.target.value = ""; // リセット
         };
         reader.readAsText(file);
     }
@@ -241,7 +313,6 @@
         isPlaying = false;
         document.getElementById('overlay-msg').innerText = "📹 動画ファイルを書き出し中...";
         document.getElementById('overlay').style.display = 'flex';
-        
         const currentFps = document.getElementById('fps').value;
         const stream = playCanvas.captureStream(currentFps);
         const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
@@ -249,9 +320,8 @@
         recorder.ondataavailable = (e) => chunks.push(e.data);
         recorder.onstop = () => {
             const blob = new Blob(chunks, { type: 'video/webm' });
-            const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = 'stopmotion_movie.webm'; a.click();
+            a.href = URL.createObjectURL(blob); a.download = 'movie.webm'; a.click();
             document.getElementById('overlay').style.display = 'none';
         };
         recorder.start();
@@ -267,7 +337,7 @@
         playCanvas.style.display = "none";
     }
 
-    window.onkeydown = (e) => { if(e.key === 'Enter') takePhoto(); };
+    window.onkeydown = (e) => { if(e.key === 'Enter') takePhoto(true); };
 </script>
 </body>
 </html>
