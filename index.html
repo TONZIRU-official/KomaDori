@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>KOMADORI STUDIO</title>
+    <title>KOMADORI STUDIO - Fix</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
@@ -26,18 +26,14 @@
 
         .controls { display: flex; gap: 10px; margin-top: 15px; align-items: center; flex-wrap: wrap; justify-content: center; }
         .btn { padding: 10px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; color: white; display: flex; align-items: center; gap: 5px; }
-        .btn:hover { opacity: 0.8; transform: translateY(-1px); }
+        .btn:hover { opacity: 0.8; }
         .btn-shoot { background: var(--accent); font-size: 18px; padding: 15px 30px; }
         .btn-play { background: var(--blue); }
         .btn-download { background: var(--green); }
-        .btn-save { background: var(--purple); } 
-        .btn-load { background: #4b6584; } 
-        .btn-undo { background: #57606f; }
-        .btn-reset { background: #333; border: 1px solid var(--accent); color: var(--accent); }
-        
-        /* 共有ボタン：紫系で統一 */
         .btn-share { background: #6c5ce7; }
         .btn-join { background: #4834d4; }
+        .btn-undo { background: #57606f; }
+        .btn-reset { background: #333; border: 1px solid var(--accent); color: var(--accent); }
 
         .gallery { height: 110px; background: #0a0a0a; display: flex; gap: 6px; padding: 8px; overflow-x: auto; border-top: 1px solid #222; }
         .gallery-item { height: 90px; border: 1px solid #444; position: relative; }
@@ -45,10 +41,10 @@
         
         #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; }
 
-        /* 共有モーダル */
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 3000; }
-        .modal-content { background: var(--panel); padding: 30px; border-radius: 12px; border: 2px solid var(--purple); width: 320px; text-align: center; }
-        .code-display { font-size: 28px; letter-spacing: 3px; font-family: monospace; color: #fff; background: #000; padding: 15px; border-radius: 8px; margin: 20px 0; border: 2px solid var(--purple); font-weight: bold; }
+        .modal-content { background: var(--panel); padding: 30px; border-radius: 12px; border: 2px solid var(--purple); width: 340px; text-align: center; }
+        .code-display { font-size: 28px; letter-spacing: 3px; font-family: monospace; color: #fff; background: #000; padding: 15px; border-radius: 8px; margin: 15px 0; border: 2px solid var(--purple); font-weight: bold; }
+        .error-msg { color: var(--accent); font-size: 12px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -69,8 +65,9 @@
 <div id="share-modal" class="modal">
     <div class="modal-content">
         <h3>🤝 共有コード</h3>
-        <p>相手にこの8文字を伝えてください</p>
-        <div id="my-peer-id" class="code-display">--------</div>
+        <p style="font-size: 13px;">この8文字を相手に伝えてください</p>
+        <div id="my-peer-id" class="code-display">発行中...</div>
+        <div id="share-error" class="error-msg"></div>
         <button class="btn" style="background:#555; width:100%" onclick="closeModal()">とじる</button>
     </div>
 </div>
@@ -80,14 +77,14 @@
         <span class="status">🎬 KOMADORI STUDIO</span>
         <span id="conn-info" class="conn-status">● オフライン</span>
     </div>
-    <div style="display: flex; gap: 10px;">
+    <div style="display: flex; gap: 8px;">
         <button class="btn btn-share" onclick="openShareModal()">🔗 コード発行</button>
         <button class="btn btn-join" onclick="joinRoom()">📥 コード入力</button>
-        <button class="btn btn-save" onclick="saveProject()">💾 セーブ</button>
-        <button class="btn btn-load" onclick="document.getElementById('file-input').click()">📂 ロード</button>
+        <button class="btn" style="background:var(--purple); padding:10px;" onclick="saveProject()">💾</button>
+        <button class="btn" style="background:#4b6584; padding:10px;" onclick="document.getElementById('file-input').click()">📂</button>
         <input type="file" id="file-input" style="display:none;" accept=".json" onchange="loadProject(event)">
     </div>
-    <div>コマ数: <span id="count" style="font-size: 20px;">0</span></div>
+    <div>コマ: <span id="count" style="font-size: 18px;">0</span></div>
 </header>
 
 <div class="container">
@@ -99,11 +96,11 @@
 
     <div class="controls">
         <button class="btn btn-shoot" onclick="takePhoto(true)">📸 撮影 (Enter)</button>
-        <button class="btn btn-play" id="play-btn" onclick="togglePlay()">⏯️ 再生</button>
-        <button class="btn btn-download" onclick="downloadVideo()">📹 動画書き出し</button>
-        <button class="btn btn-undo" onclick="deleteLast(true)">↩️ 1つ戻る</button>
-        <button class="btn btn-reset" onclick="resetAll()">🔄 リセット</button>
-        <div style="font-size: 12px; color: #888;">速度: <input type="number" id="fps" value="10" style="width:40px; background:#000; color:#fff; border:1px solid #444;"> fps</div>
+        <button class="btn btn-play" id="play-btn" onclick="togglePlay()">⏯️</button>
+        <button class="btn btn-undo" onclick="deleteLast(true)">↩️</button>
+        <button class="btn btn-download" onclick="downloadVideo()">📹 書き出し</button>
+        <button class="btn btn-reset" onclick="resetAll()">🔄</button>
+        <div style="font-size: 12px; color: #888;"><input type="number" id="fps" value="10" style="width:35px; background:#000; color:#fff; border:1px solid #444;"> fps</div>
     </div>
 </div>
 
@@ -131,52 +128,62 @@
     }
 
     async function startCamera() {
-        const stream = await navigator.mediaDevices.getUserMedia({video: {width: 640, height: 480}});
-        video.srcObject = stream;
-        onionCanvas.width = playCanvas.width = 640;
-        onionCanvas.height = playCanvas.height = 480;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({video: {width: 640, height: 480}});
+            video.srcObject = stream;
+            onionCanvas.width = playCanvas.width = 640;
+            onionCanvas.height = playCanvas.height = 480;
+        } catch(e) { alert("カメラが見つかりません"); }
     }
 
-    // --- 共有機能：8文字コード生成 ---
+    // --- 共有機能（エラー対策版） ---
     function openShareModal() {
         document.getElementById('share-modal').style.display = 'flex';
-        if (!peer) {
-            // ランダムな8文字（大文字英数字）を生成
-            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 読み間違いやすいI,O,1,0を除外
-            let customId = '';
-            for (let i = 0; i < 8; i++) customId += chars.charAt(Math.floor(Math.random() * chars.length));
+        document.getElementById('share-error').innerText = "";
+        
+        if (peer) { peer.destroy(); } // 一旦リセット
 
-            peer = new Peer(customId);
-            peer.on('open', (id) => {
-                document.getElementById('my-peer-id').innerText = id;
-            });
-            peer.on('connection', (c) => {
-                conn = c;
-                initConnection();
-            });
-            peer.on('error', (err) => {
-                alert("接続エラーが発生しました。もう一度やり直してください。");
-                peer = null;
-                closeModal();
-            });
-        }
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let customId = '';
+        for (let i = 0; i < 8; i++) customId += chars.charAt(Math.floor(Math.random() * chars.length));
+
+        peer = new Peer(customId);
+        
+        peer.on('open', (id) => {
+            document.getElementById('my-peer-id').innerText = id;
+        });
+
+        peer.on('connection', (c) => {
+            conn = c;
+            initConnection();
+        });
+
+        peer.on('error', (err) => {
+            console.error(err.type);
+            let msg = "接続エラー：";
+            if(err.type === 'unavailable-id') msg = "コード重複。もう一度「コード発行」して下さい。";
+            else if(err.type === 'network') msg = "ネットワーク制限により接続できません。";
+            else msg = "エラーが発生しました: " + err.type;
+            document.getElementById('share-error').innerText = msg;
+            document.getElementById('my-peer-id').innerText = "ERROR";
+        });
     }
 
     function joinRoom() {
         const targetId = prompt("相手の8文字コードを入力してください:").toUpperCase();
-        if (!targetId || targetId.length !== 8) { alert("正しい8文字のコードを入力してください"); return; }
+        if (!targetId) return;
         
-        if (!peer) {
-            // 参加側もランダムなIDでPeerを初期化
-            peer = new Peer();
-            peer.on('open', () => {
-                conn = peer.connect(targetId);
-                initConnection();
-            });
-        } else {
+        if (peer) peer.destroy();
+        peer = new Peer(); // 参加側は自動ID
+
+        peer.on('open', () => {
             conn = peer.connect(targetId);
             initConnection();
-        }
+        });
+
+        peer.on('error', (err) => {
+            alert("接続に失敗しました。コードが正しいか確認してください。");
+        });
     }
 
     function initConnection() {
@@ -196,7 +203,7 @@
                 frames.pop();
                 updateUI();
                 if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
-                else oCtx.clearRect(0, 0, 640, 480);
+                else oCtx.clearRect(0,0,640,480);
             } else if (data.type === 'SYNC') {
                 frames = data.frames;
                 updateUI();
@@ -207,7 +214,7 @@
 
     function closeModal() { document.getElementById('share-modal').style.display = 'none'; }
 
-    // --- 基本操作（同期対応） ---
+    // --- 基本操作 ---
     function takePhoto(shouldSync) {
         if(isPlaying) return;
         const c = document.createElement('canvas');
@@ -217,10 +224,7 @@
         frames.push(data);
         updateUI();
         updateOnionSkin(data);
-
-        if(shouldSync && conn && conn.open) {
-            conn.send({ type: 'ADD', frame: data });
-        }
+        if(shouldSync && conn && conn.open) conn.send({ type: 'ADD', frame: data });
     }
 
     function deleteLast(shouldSync) {
@@ -228,36 +232,62 @@
         frames.pop();
         updateUI();
         if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
-        else oCtx.clearRect(0, 0, 640, 480);
-
-        if(shouldSync && conn && conn.open) {
-            conn.send({ type: 'UNDO' });
-        }
+        else oCtx.clearRect(0,0,640,480);
+        if(shouldSync && conn && conn.open) conn.send({ type: 'UNDO' });
     }
 
     function resetAll() {
-        if(frames.length === 0) return;
         if(confirm("すべてリセットしますか？")) {
-            frames = [];
-            oCtx.clearRect(0, 0, 640, 480);
-            updateUI();
+            frames = []; oCtx.clearRect(0,0,640,480); updateUI();
         }
     }
 
-    // --- その他機能（保存・再生・書き出し） ---
+    function updateUI() {
+        document.getElementById('count').innerText = frames.length;
+        const gal = document.getElementById('gallery');
+        gal.innerHTML = '';
+        frames.forEach((src, index) => {
+            const div = document.createElement('div');
+            div.className = 'gallery-item';
+            div.innerHTML = `<img src="${src}" style="height:90px;"><span>${index+1}</span>`;
+            gal.appendChild(div);
+        });
+        gal.scrollLeft = gal.scrollWidth; 
+    }
+
+    function updateOnionSkin(src) {
+        const img = new Image();
+        img.onload = () => { oCtx.clearRect(0,0,640,480); oCtx.drawImage(img,0,0); };
+        img.src = src;
+    }
+
+    function togglePlay() {
+        if(frames.length === 0) return;
+        isPlaying = !isPlaying;
+        const btn = document.getElementById('play-btn');
+        if(isPlaying) { btn.innerText = "⏹️"; playCanvas.style.display = "block"; playLoop(); }
+        else { btn.innerText = "⏯️"; playCanvas.style.display = "none"; }
+    }
+
+    function playLoop() {
+        if(!isPlaying) return;
+        const img = new Image();
+        img.onload = () => {
+            pCtx.clearRect(0,0,640,480); pCtx.drawImage(img,0,0);
+            playIdx = (playIdx + 1) % frames.length;
+            setTimeout(playLoop, 1000 / document.getElementById('fps').value);
+        };
+        img.src = frames[playIdx];
+    }
+
     function saveProject() {
-        if(frames.length === 0) { alert("保存するデータがありません"); return; }
         const data = { fps: document.getElementById('fps').value, frames: frames };
-        const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `stopmotion_${new Date().getTime()}.json`;
-        a.click();
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'}));
+        a.download = `stopmotion.json`; a.click();
     }
 
     function loadProject(event) {
-        const file = event.target.files[0];
-        if(!file) return;
         const reader = new FileReader();
         document.getElementById('overlay').style.display = 'flex';
         reader.onload = (e) => {
@@ -268,81 +298,31 @@
             if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
             document.getElementById('overlay').style.display = 'none';
         };
-        reader.readAsText(file);
-    }
-
-    function updateOnionSkin(src) {
-        const img = new Image();
-        img.onload = () => { oCtx.clearRect(0, 0, 640, 480); oCtx.drawImage(img, 0, 0); };
-        img.src = src;
-    }
-
-    function updateUI() {
-        document.getElementById('count').innerText = frames.length;
-        const gal = document.getElementById('gallery');
-        gal.innerHTML = '';
-        frames.forEach((src, index) => {
-            const div = document.createElement('div');
-            div.className = 'gallery-item';
-            const img = document.createElement('img');
-            img.src = src; img.style.height = "90px";
-            const label = document.createElement('span');
-            label.innerText = index + 1;
-            div.appendChild(img); div.appendChild(label);
-            gal.appendChild(div);
-        });
-        gal.scrollLeft = gal.scrollWidth; 
-    }
-
-    function togglePlay() {
-        if(frames.length === 0) return;
-        isPlaying = !isPlaying;
-        const btn = document.getElementById('play-btn');
-        if(isPlaying) {
-            btn.innerText = "⏹️ 停止";
-            playCanvas.style.display = "block";
-            playLoop();
-        } else {
-            btn.innerText = "⏯️ 再生";
-            playCanvas.style.display = "none";
-        }
-    }
-
-    function playLoop() {
-        if(!isPlaying) return;
-        const img = new Image();
-        img.onload = () => {
-            pCtx.clearRect(0, 0, 640, 480);
-            pCtx.drawImage(img, 0, 0);
-            playIdx = (playIdx + 1) % frames.length;
-            setTimeout(playLoop, 1000 / document.getElementById('fps').value);
-        };
-        img.src = frames[playIdx];
+        reader.readAsText(event.target.files[0]);
     }
 
     async function downloadVideo() {
         if(frames.length === 0) return;
-        isPlaying = false;
         document.getElementById('overlay-msg').innerText = "📹 書き出し中...";
         document.getElementById('overlay').style.display = 'flex';
-        const currentFps = document.getElementById('fps').value;
-        const stream = playCanvas.captureStream(currentFps);
+        const fps = document.getElementById('fps').value;
+        const stream = playCanvas.captureStream(fps);
         const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
         const chunks = [];
-        recorder.ondataavailable = (e) => chunks.push(e.data);
+        recorder.ondataavailable = e => chunks.push(e.data);
         recorder.onstop = () => {
-            const blob = new Blob(chunks, { type: 'video/webm' });
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob); a.download = 'movie.webm'; a.click();
+            a.href = URL.createObjectURL(new Blob(chunks, {type:'video/webm'}));
+            a.download = 'movie.webm'; a.click();
             document.getElementById('overlay').style.display = 'none';
         };
         recorder.start();
         playCanvas.style.display = "block";
-        for(let i = 0; i < frames.length; i++) {
-            await new Promise(resolve => {
+        for(let f of frames) {
+            await new Promise(res => {
                 const img = new Image();
-                img.onload = () => { pCtx.clearRect(0,0,640,480); pCtx.drawImage(img, 0, 0); setTimeout(resolve, 1000 / currentFps); };
-                img.src = frames[i];
+                img.onload = () => { pCtx.clearRect(0,0,640,480); pCtx.drawImage(img,0,0); setTimeout(res, 1000/fps); };
+                img.src = f;
             });
         }
         recorder.stop();
