@@ -2,46 +2,29 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>KOMADORI STUDIO</title>
+    <title>KOMADORI STUDIO Lite</title>
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
     <style>
-        :root {
-            --bg: #121212; --panel: #1e1e1e; --accent: #ff4757;
-            --blue: #00a8ff; --green: #2ed573; --text: #eee; --purple: #a55eea;
-        }
-        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
-        
-        #lock-screen { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; align-items: center; justify-content: center; }
-        .lock-card { background: var(--panel); padding: 40px; border-radius: 12px; border: 1px solid var(--blue); text-align: center; }
-        input[type="password"] { font-size: 20px; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; width: 200px; text-align: center; margin-bottom: 20px; outline: none; }
-
+        :root { --bg: #121212; --panel: #1e1e1e; --accent: #ff4757; --blue: #00a8ff; --green: #2ed573; --text: #eee; }
+        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         header { background: #000; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
-        .status { font-weight: bold; color: var(--blue); }
-
-        .container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; position: relative; }
+        #lock-screen, #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .lock-card { background: var(--panel); padding: 40px; border-radius: 12px; border: 1px solid var(--blue); text-align: center; }
+        input { background: #000; color: #fff; border: 1px solid #444; border-radius: 4px; padding: 8px; }
+        .container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; }
         .monitor-wrapper { position: relative; width: 640px; height: 480px; background: #000; border: 3px solid #333; border-radius: 8px; overflow: hidden; }
-        video, canvas { position: absolute; top: 0; left: 0; width: 640px; height: 480px; object-fit: cover; }
+        video, canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
         #onion-layer { opacity: 0.4; pointer-events: none; }
-
-        .controls { display: flex; gap: 10px; margin-top: 15px; align-items: center; flex-wrap: wrap; justify-content: center; }
-        .btn { padding: 10px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; color: white; display: flex; align-items: center; gap: 5px; }
-        .btn:hover { opacity: 0.8; transform: translateY(-1px); }
-        .btn-shoot { background: var(--accent); font-size: 18px; padding: 15px 30px; }
-        .btn-play { background: var(--blue); }
-        .btn-save { background: var(--purple); } 
-        .btn-undo { background: #57606f; }
-        .btn-cam { background: #444; border: 1px solid #666; }
-
+        .controls { display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap; justify-content: center; align-items: center; }
+        .btn { padding: 10px 16px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; color: white; transition: 0.2s; }
+        .btn:hover { opacity: 0.8; }
         .gallery { height: 110px; background: #0a0a0a; display: flex; gap: 8px; padding: 10px; overflow-x: auto; border-top: 1px solid #222; }
-        .gallery-item { height: 90px; border: 1px solid #444; position: relative; flex-shrink: 0; cursor: pointer; }
+        .gallery-item { height: 90px; border: 1px solid #444; position: relative; flex-shrink: 0; }
         .gallery-item img { height: 100%; border-radius: 4px; }
-        .gallery-item span { position: absolute; bottom: 0; left: 0; background: rgba(0,0,0,0.7); font-size: 10px; padding: 2px 4px; border-radius: 0 4px 0 0; }
-        .del-btn { position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; background: var(--accent); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; border: 2px solid #000; visibility: hidden; }
-        .gallery-item:hover .del-btn { visibility: visible; }
-        
-        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; text-align: center; }
+        .del-btn { position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; background: var(--accent); border-radius: 50%; cursor: pointer; display: none; align-items: center; justify-content: center; }
+        .gallery-item:hover .del-btn { display: flex; }
         .loading-spin { border: 4px solid #f3f3f3; border-top: 4px solid var(--blue); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 10px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -49,221 +32,154 @@
 <div id="lock-screen">
     <div class="lock-card">
         <h2>🔑 PASSCODE</h2>
-        <input type="password" id="pass-input" placeholder="****">
-        <br>
-        <button class="btn btn-play" style="width:100%" onclick="checkPass()">ENTER STUDIO</button>
+        <input type="password" id="pass-input" placeholder="****"><br><br>
+        <button class="btn" style="background:var(--blue); width:100%" onclick="checkPass()">ENTER</button>
     </div>
 </div>
 
-<div id="overlay">
+<div id="overlay" style="display:none;">
     <div class="loading-spin"></div>
-    <h2 id="overlay-msg">🎬 処理中...</h2>
+    <h2 id="overlay-msg">処理中...</h2>
 </div>
 
 <header>
-    <div><span class="status">🎬 KOMADORI STUDIO</span></div>
-    <div style="display: flex; gap: 10px;">
-        <button class="btn btn-cam" onclick="switchCamera()">📷 カメラ切替</button>
-        <button class="btn btn-save" onclick="saveProject()">💾 セーブ (S)</button>
-        <button class="btn" style="background:#4b6584;" onclick="document.getElementById('file-input').click()">📂 ロード</button>
-        <input type="file" id="file-input" style="display:none;" accept=".json" onchange="loadProject(event)">
+    <span style="color:var(--blue); font-weight:bold;">🎬 KOMADORI</span>
+    <div style="display:flex; gap:8px;">
+        <button class="btn" style="background:#444" onclick="switchCam()">📷 切替</button>
+        <button class="btn" style="background:var(--purple)" onclick="saveProject()">💾 保存</button>
+        <button class="btn" style="background:#4b6584" onclick="fileInput.click()">📂 読込</button>
+        <input type="file" id="fileInput" style="display:none;" accept=".json" onchange="loadProject(event)">
     </div>
-    <div>コマ数: <span id="count" style="font-size: 20px;">0</span></div>
+    <div>コマ数: <span id="count">0</span></div>
 </header>
 
 <div class="container">
     <div class="monitor-wrapper">
         <video id="video" autoplay playsinline muted></video>
-        <canvas id="onion-layer"></canvas> 
+        <canvas id="onion-layer"></canvas>
         <canvas id="play-canvas" style="display:none;"></canvas>
     </div>
-
     <div class="controls">
-        <button class="btn btn-shoot" onclick="takePhoto()">📸 撮影 (Enter)</button>
-        <button class="btn btn-play" id="play-btn" onclick="togglePlay()">⏯️ 再生 (Space)</button>
-        <button class="btn btn-undo" onclick="deleteLast()">↩️ 最後を消す (Z)</button>
-        <button class="btn" style="background:var(--green);" onclick="downloadMP4()">📹 MP4書き出し</button>
-        <button class="btn" style="background:#333; color:var(--accent);" onclick="resetAll()">🔄 リセット</button>
-        <div style="font-size: 12px; color: #888;">速度: <input type="number" id="fps" value="10" style="width:40px; background:#000; color:#fff; border:1px solid #444;"> fps</div>
+        <button class="btn" style="background:var(--accent); font-size:1.2rem;" onclick="takePhoto()">📸 撮影 (Enter)</button>
+        <button class="btn" style="background:var(--blue);" id="play-btn" onclick="togglePlay()">⏯️ 再生 (Space)</button>
+        <button class="btn" style="background:#57606f;" onclick="deleteFrame(-1)">↩️ 戻る (Z)</button>
+        <button class="btn" style="background:var(--green);" onclick="downloadMP4()">📹 出力</button>
+        <button class="btn" style="background:#333;" onclick="resetAll()">🔄 リセット</button>
+        <div style="font-size:12px;">FPS: <input type="number" id="fps" value="10" style="width:35px;"></div>
     </div>
-    <div style="font-size: 11px; color: #777; margin-top: 8px;">ショートカット: [Enter]撮影 / [Space]再生 / [Z]最後を消す / [S]セーブ</div>
 </div>
 
 <div class="gallery" id="gallery"></div>
 
 <script>
-    const PASS = "ArtStop";
-    let frames = [];
-    let isPlaying = false;
-    let playIdx = 0;
-    let currentFacingMode = "user"; // "user" は自分側、"environment" は外側
+    const PASS = "ArtStop", { createFFmpeg, fetchFile } = FFmpeg, ffmpeg = createFFmpeg({ log: false });
+    let frames = [], isPlaying = false, playIdx = 0, facing = "user";
 
-    const { createFFmpeg, fetchFile } = FFmpeg;
-    const ffmpeg = createFFmpeg({ log: false });
+    const $ = id => document.getElementById(id);
+    const v = $('video'), oC = $('onion-layer'), oCtx = oC.getContext('2d'), pC = $('play-canvas'), pCtx = pC.getContext('2d');
 
-    const video = document.getElementById('video');
-    const onionCanvas = document.getElementById('onion-layer');
-    const oCtx = onionCanvas.getContext('2d');
-    const playCanvas = document.getElementById('play-canvas');
-    const pCtx = playCanvas.getContext('2d');
-
-    function checkPass() {
-        if(document.getElementById('pass-input').value === PASS) {
-            document.getElementById('lock-screen').style.display = 'none';
-            startCamera();
-        }
-    }
-
-    // カメラの開始（切り替え時も呼び出す）
     async function startCamera() {
-        if (video.srcObject) {
-            video.srcObject.getTracks().forEach(track => track.stop());
-        }
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: currentFacingMode, width: 640, height: 480 }
-            });
-            video.srcObject = stream;
-            onionCanvas.width = playCanvas.width = 640;
-            onionCanvas.height = playCanvas.height = 480;
-        } catch(e) { 
-            alert("カメラの起動に失敗しました。カメラの使用を許可してください。"); 
-        }
+        if (v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: 640, height: 480 } });
+        v.srcObject = stream;
+        oC.width = pC.width = 640; oC.height = pC.height = 480;
     }
 
-    // カメラ切り替え機能
-    function switchCamera() {
-        currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
-        startCamera();
-    }
+    function checkPass() { if($('pass-input').value === PASS){ $('lock-screen').style.display='none'; startCamera(); } }
+    function switchCam() { facing = facing === "user" ? "environment" : "user"; startCamera(); }
 
     function takePhoto() {
         if(isPlaying) return;
         const c = document.createElement('canvas');
         c.width = 640; c.height = 480;
-        c.getContext('2d').drawImage(video, 0, 0, 640, 480);
-        const data = c.toDataURL('image/png');
-        frames.push(data);
+        c.getContext('2d').drawImage(v, 0, 0);
+        frames.push(c.toDataURL('image/png'));
         updateUI();
-        updateOnionSkin(data);
     }
 
-    function deleteFrame(index) {
-        if(confirm(`${index + 1}番目のコマを削除しますか？`)) {
-            frames.splice(index, 1);
-            updateUI();
-            if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
-            else oCtx.clearRect(0,0,640,480);
-        }
-    }
-
-    function deleteLast() {
-        if(frames.length === 0) return;
-        frames.pop();
+    function deleteFrame(idx) {
+        if(idx === -1) frames.pop();
+        else if(confirm("削除しますか？")) frames.splice(idx, 1);
         updateUI();
-        if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
-        else oCtx.clearRect(0,0,640,480);
-    }
-
-    function resetAll() {
-        if(confirm("すべてリセットしますか？")) {
-            frames = []; oCtx.clearRect(0,0,640,480); updateUI();
-        }
     }
 
     function updateUI() {
-        document.getElementById('count').innerText = frames.length;
-        const gal = document.getElementById('gallery');
-        gal.innerHTML = '';
-        frames.forEach((src, i) => {
-            const div = document.createElement('div');
-            div.className = 'gallery-item';
-            div.innerHTML = `<img src="${src}"><span>${i+1}</span><div class="del-btn" onclick="event.stopPropagation(); deleteFrame(${i})">×</div>`;
-            div.onclick = () => updateOnionSkin(src);
-            gal.appendChild(div);
-        });
-        gal.scrollLeft = gal.scrollWidth; 
+        $('count').innerText = frames.length;
+        $('gallery').innerHTML = frames.map((src, i) => `
+            <div class="gallery-item" onclick="updateOnion('${src}')">
+                <img src="${src}"><span>${i+1}</span>
+                <div class="del-btn" onclick="event.stopPropagation(); deleteFrame(${i})">×</div>
+            </div>`).join('');
+        $('gallery').scrollLeft = $('gallery').scrollWidth;
+        updateOnion(frames[frames.length - 1] || null);
     }
 
-    function updateOnionSkin(src) {
-        const img = new Image();
-        img.onload = () => { oCtx.clearRect(0,0,640,480); oCtx.drawImage(img,0,0); };
-        img.src = src;
+    function updateOnion(src) {
+        oCtx.clearRect(0, 0, 640, 480);
+        if(!src) return;
+        const img = new Image(); img.onload = () => oCtx.drawImage(img, 0, 0); img.src = src;
     }
 
     function togglePlay() {
-        if(frames.length === 0) return;
+        if (!frames.length) return;
         isPlaying = !isPlaying;
-        document.getElementById('play-btn').innerText = isPlaying ? "⏹️ 停止" : "⏯️ 再生";
-        if(isPlaying) { playCanvas.style.display = "block"; playIdx = 0; playLoop(); }
-        else { playCanvas.style.display = "none"; }
+        $('play-btn').innerText = isPlaying ? "⏹️ 停止" : "⏯️ 再生";
+        pC.style.display = isPlaying ? "block" : "none";
+        if (isPlaying) { playIdx = 0; playLoop(); }
     }
 
     function playLoop() {
-        if(!isPlaying) return;
+        if (!isPlaying) return;
         const img = new Image();
         img.onload = () => {
-            pCtx.clearRect(0,0,640,480); pCtx.drawImage(img,0,0);
+            pCtx.drawImage(img, 0, 0);
             playIdx = (playIdx + 1) % frames.length;
-            setTimeout(playLoop, 1000 / document.getElementById('fps').value);
+            setTimeout(playLoop, 1000 / $('fps').value);
         };
         img.src = frames[playIdx];
     }
 
     async function downloadMP4() {
-        if(frames.length === 0) return;
-        const msg = document.getElementById('overlay-msg');
-        const overlay = document.getElementById('overlay');
-        overlay.style.display = 'flex';
-        msg.innerText = "🎬 MP4に変換中...";
-
+        if (!frames.length) return;
+        $('overlay').style.display = 'flex';
         try {
             if (!ffmpeg.isLoaded()) await ffmpeg.load();
             for (let i = 0; i < frames.length; i++) {
-                const name = `f${i.toString().padStart(5, '0')}.png`;
-                ffmpeg.FS('writeFile', name, await fetchFile(frames[i]));
+                ffmpeg.FS('writeFile', `f${i}.png`, await fetchFile(frames[i]));
             }
-            const fps = document.getElementById('fps').value;
-            await ffmpeg.run('-framerate', fps.toString(), '-i', 'f%05d.png', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', 'out.mp4');
+            await ffmpeg.run('-framerate', $('fps').value, '-i', 'f%d.png', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', 'out.mp4');
             const data = ffmpeg.FS('readFile', 'out.mp4');
             const a = document.createElement('a');
             a.href = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
             a.download = 'animation.mp4'; a.click();
-            for (let i = 0; i < frames.length; i++) {
-                ffmpeg.FS('unlink', `f${i.toString().padStart(5, '0')}.png`);
-            }
-        } catch (e) { alert("エラーが発生しました。"); }
-        overlay.style.display = 'none';
+        } catch (e) { alert("Error"); }
+        $('overlay').style.display = 'none';
     }
 
     function saveProject() {
-        const blob = new Blob([JSON.stringify({fps: document.getElementById('fps').value, frames})], {type:'application/json'});
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `stopmo_save.json`; a.click();
+        a.href = URL.createObjectURL(new Blob([JSON.stringify({fps: $('fps').value, frames})], {type:'application/json'}));
+        a.download = 'project.json'; a.click();
     }
 
     function loadProject(e) {
         const reader = new FileReader();
-        document.getElementById('overlay').style.display = 'flex';
         reader.onload = (ev) => {
             const data = JSON.parse(ev.target.result);
-            frames = data.frames;
-            document.getElementById('fps').value = data.fps || 10;
-            updateUI();
-            if(frames.length > 0) updateOnionSkin(frames[frames.length - 1]);
-            document.getElementById('overlay').style.display = 'none';
+            frames = data.frames; $('fps').value = data.fps; updateUI();
         };
         reader.readAsText(e.target.files[0]);
     }
 
+    function resetAll() { if(confirm("リセット？")) { frames = []; updateUI(); } }
+
     window.onkeydown = (e) => {
-        if(document.getElementById('lock-screen').style.display !== 'none') return;
-        const key = e.key.toLowerCase();
-        if(key === 'enter') { e.preventDefault(); takePhoto(); }
-        if(key === ' ') { e.preventDefault(); togglePlay(); }
-        if(key === 'z') { e.preventDefault(); deleteLast(); }
-        if(key === 's') { e.preventDefault(); saveProject(); }
+        if($('lock-screen').style.display === 'none') {
+            if(e.key === 'Enter') takePhoto();
+            if(e.key === ' ') { e.preventDefault(); togglePlay(); }
+            if(e.key.toLowerCase() === 'z') deleteFrame(-1);
+            if(e.key.toLowerCase() === 's') saveProject();
+        }
     };
 </script>
 </body>
